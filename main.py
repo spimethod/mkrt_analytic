@@ -13,10 +13,12 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('bot.log'),
         logging.StreamHandler()
     ]
 )
+
+# Отключаем логирование в файл для Railway
+# logging.FileHandler('bot.log') - убираем для Railway
 
 logger = logging.getLogger(__name__)
 

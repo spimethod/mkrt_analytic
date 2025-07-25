@@ -383,10 +383,18 @@ class OCRScreenshotAnalyzer:
                 'will', 'does', 'is', 'are', 'can', 'should'
             ]
             
-            is_boolean_market = False
-            for indicator in boolean_indicators:
+            # Проверяем наличие не-булевых индикаторов
+            non_boolean_indicators = [
+                'multiple choice', 'choose', 'select', 'option',
+                'winner', 'winner takes all', 'multi-outcome',
+                'prediction', 'forecast', 'outcome'
+            ]
+            
+            is_boolean_market = True
+            for indicator in non_boolean_indicators:
                 if indicator in all_text:
-                    is_boolean_market = True
+                    is_boolean_market = False
+                    logger.info(f"⚠️ Найден не-булевый индикатор: {indicator}")
                     break
             
             # Если рынок не булевый, возвращаем специальный статус
@@ -398,6 +406,14 @@ class OCRScreenshotAnalyzer:
                     'status': 'closed',
                     'reason': 'non_boolean_market'
                 }
+            
+            # Определяем существование рынка
+            market_exists = bool(
+                'polymarket' in all_text or
+                'market' in all_text or
+                'prediction' in all_text or
+                'event' in all_text
+            )
             
             # Извлекаем название рынка
             title_match = re.search(r'([A-Z][^.!?]*[.!?])', full_text)
@@ -462,6 +478,10 @@ class OCRScreenshotAnalyzer:
                 else:
                     parsed_data['contract_address'] = ''
             
+            # Добавляем флаг существования рынка
+            parsed_data['market_exists'] = market_exists
+            parsed_data['is_boolean'] = is_boolean_market
+            
             logger.info(f"RegEx парсинг завершен: найдено {len(parsed_data)} полей")
             return parsed_data
             
@@ -484,8 +504,18 @@ class OCRScreenshotAnalyzer:
                 logger.warning(f"Не удалось извлечь данные для {slug}")
                 return None
             
+            # Извлекаем контракт отдельно
+            contract_address = await self.extract_contract_address()
+            if contract_address:
+                extracted_data['extracted_contract'] = contract_address
+                logger.info(f"✅ Контракт извлечен: {contract_address}")
+            
             # Парсим данные с помощью RegEx
             parsed_data = self.parse_data_with_regex(extracted_data)
+            
+            # Если контракт был извлечен, используем его
+            if contract_address and not parsed_data.get('contract_address'):
+                parsed_data['contract_address'] = contract_address
             
             # Сохраняем извлеченные данные
             await self.save_extracted_data(extracted_data, parsed_data, slug)
@@ -564,24 +594,39 @@ class OCRScreenshotAnalyzer:
         try:
             result = asyncio.run(self.analyze_market(slug))
             
-            if not result or not result.get('market_exists'):
+            if not result:
+                logger.warning(f"Используем fallback данные для {slug}")
                 # Используем fallback если анализ не удался
                 fallback_data = self.get_fallback_data(slug)
                 return {
-                    'title': fallback_data.get('market_name', f"Рынок {slug}"),
-                    'odds': fallback_data.get('prices', {'Yes': '50.00%', 'No': '50.00%'}),
+                    'market_exists': True,
+                    'is_boolean': True,
+                    'yes_percentage': 50.0,
                     'contract_address': fallback_data.get('contract_address', ''),
+                    'title': fallback_data.get('market_name', f"Рынок {slug}"),
                     'volume': fallback_data.get('total_volume', 'New')
                 }
             
+            # Проверяем, является ли рынок булевым
+            if not result.get('is_boolean', True):
+                logger.info(f"Рынок {slug} не является булевым - закрываем анализ")
+                return {
+                    'market_exists': True,
+                    'is_boolean': False,
+                    'yes_percentage': 0,
+                    'contract_address': result.get('contract_address', ''),
+                    'title': result.get('title', f"Рынок {slug}"),
+                    'volume': result.get('volume', 'New')
+                }
+            
+            # Возвращаем данные булевого рынка
             return {
-                'title': result.get('title', f"Рынок {slug}"),
-                'odds': {
-                    'Yes': f"{result.get('yes_percentage', 0):.2f}%",
-                    'No': f"{100 - result.get('yes_percentage', 0):.2f}%"
-                },
+                'market_exists': result.get('market_exists', True),
+                'is_boolean': result.get('is_boolean', True),
+                'yes_percentage': result.get('yes_percentage', 0),
                 'contract_address': result.get('contract_address', ''),
-                'volume': result.get('volume', '')
+                'title': result.get('title', f"Рынок {slug}"),
+                'volume': result.get('volume', 'New')
             }
             
         except Exception as e:
@@ -589,8 +634,10 @@ class OCRScreenshotAnalyzer:
             # Используем fallback при любой ошибке
             fallback_data = self.get_fallback_data(slug)
             return {
-                'title': fallback_data.get('market_name', f"Рынок {slug}"),
-                'odds': fallback_data.get('prices', {'Yes': '50.00%', 'No': '50.00%'}),
+                'market_exists': True,
+                'is_boolean': True,
+                'yes_percentage': 50.0,
                 'contract_address': fallback_data.get('contract_address', ''),
+                'title': fallback_data.get('market_name', f"Рынок {slug}"),
                 'volume': fallback_data.get('total_volume', 'New')
             } 
