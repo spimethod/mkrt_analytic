@@ -46,12 +46,39 @@ class DatabaseManager:
             logger.error(f"Error getting new markets: {e}")
             return []
     
+    def market_exists_in_analytic(self, slug):
+        """Проверка существования рынка в аналитической таблице по slug"""
+        try:
+            if not self.conn:
+                if not self.connect():
+                    return False
+            
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT id FROM mkrt_analytic WHERE slug = %s", (slug,))
+            result = cursor.fetchone()
+            cursor.close()
+            
+            return result is not None
+        except Exception as e:
+            logger.error(f"Error checking market existence: {e}")
+            return False
+
     def insert_market_to_analytic(self, market_data):
         """Добавление рынка в аналитическую таблицу mkrt_analytic"""
         try:
             if not self.conn:
                 if not self.connect():
-                    return False
+                    return None
+            
+            # Проверяем, существует ли уже рынок с таким slug
+            if self.market_exists_in_analytic(market_data['slug']):
+                logger.info(f"Market {market_data['slug']} already exists in analytic database")
+                # Получаем ID существующего рынка
+                cursor = self.conn.cursor()
+                cursor.execute("SELECT id FROM mkrt_analytic WHERE slug = %s", (market_data['slug'],))
+                result = cursor.fetchone()
+                cursor.close()
+                return result[0] if result else None
             
             cursor = self.conn.cursor()
             cursor.execute("""

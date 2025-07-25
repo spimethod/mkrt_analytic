@@ -78,31 +78,48 @@ class MarketAnalysisBot:
             markets = self.db_manager.get_new_markets()
             
             for market in markets:
-                # Проверяем, не анализируем ли уже этот рынок
-                if market['id'] not in self.active_markets:
-                    # Добавляем рынок в аналитическую базу
-                    market_id = self.db_manager.insert_market_to_analytic(market)
+                # Проверяем, не анализируем ли уже этот рынок (по ID и slug)
+                market_id = market['id']
+                market_slug = market['slug']
+                
+                # Проверяем по ID
+                if market_id not in self.active_markets:
+                    # Дополнительно проверяем по slug
+                    slug_in_use = any(
+                        active_market['slug'] == market_slug 
+                        for active_market in self.active_markets.values()
+                    )
                     
-                    if market_id:
-                        # Начинаем анализ рынка
-                        self.active_markets[market_id] = {
-                            'start_time': datetime.now(),
-                            'last_log': datetime.now(),
-                            'slug': market['slug'],
-                            'question': market['question']
-                        }
+                    if not slug_in_use:
+                        # Добавляем рынок в аналитическую базу
+                        analytic_market_id = self.db_manager.insert_market_to_analytic(market)
                         
-                        # Логируем новый рынок
-                        self.telegram_logger.log_new_market(market)
-                        logger.info(f"Started analysis for market: {market['slug']}")
-                        
-                        # Запускаем анализ в отдельном потоке
-                        analysis_thread = threading.Thread(
-                            target=self.analyze_market_continuously,
-                            args=(market_id, market['slug'])
-                        )
-                        analysis_thread.daemon = True
-                        analysis_thread.start()
+                        if analytic_market_id:
+                            # Начинаем анализ рынка
+                            self.active_markets[market_id] = {
+                                'start_time': datetime.now(),
+                                'last_log': datetime.now(),
+                                'slug': market['slug'],
+                                'question': market['question']
+                            }
+                            
+                            # Логируем новый рынок
+                            self.telegram_logger.log_new_market(market)
+                            logger.info(f"Started analysis for market: {market['slug']}")
+                            
+                            # Запускаем анализ в отдельном потоке
+                            analysis_thread = threading.Thread(
+                                target=self.analyze_market_continuously,
+                                args=(analytic_market_id, market['slug'])
+                            )
+                            analysis_thread.daemon = True
+                            analysis_thread.start()
+                        else:
+                            logger.warning(f"Failed to insert market {market_slug} to analytic database")
+                    else:
+                        logger.info(f"Market {market_slug} is already being analyzed, skipping")
+                else:
+                    logger.info(f"Market ID {market_id} is already in active markets, skipping")
         
         except Exception as e:
             error_msg = f"Error checking new markets: {e}"
