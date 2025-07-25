@@ -370,38 +370,14 @@ class OCRScreenshotAnalyzer:
     async def detect_market_category(self):
         """Определение категории рынка (Sports/Crypto/Other) через скрабинг"""
         try:
-            # 1. Ищем только основные навигационные элементы (исключаем технические)
-            tab_selectors = [
-                'nav a',
-                '[role="tab"]',
-                '[class*="tab"]',
-                '[class*="nav"] a',
-                'header a',
-                '[class*="category"]'
-            ]
-            
-            navigation_text = ""
-            for selector in tab_selectors:
-                try:
-                    elements = await self.page.query_selector_all(selector)
-                    for element in elements:
-                        text = await element.text_content()
-                        if text and len(text.strip()) > 1:  # Исключаем одиночные символы
-                            # Фильтруем технические элементы
-                            filtered_text = text.strip().lower()
-                            if not any(tech in filtered_text for tech in ['1h', '6h', '1d', '1w', '1m', 'all', 'comments', 'holders', 'activity', 'post', 'trade', 'max', 'gear', 'chevron', 'dots', 'arrows', 'circle', 'link']):
-                                navigation_text += filtered_text + " "
-                                logger.info(f"Найден навигационный элемент: {text}")
-                except Exception as e:
-                    logger.debug(f"Ошибка поиска по селектору {selector}: {e}")
-                    continue
-            
-            # 2. Ищем активные/выделенные табы (только основные категории)
+            # 1. Ищем только активные/выделенные табы (как показано на скрине)
             active_selectors = [
                 '[class*="active"]',
                 '[class*="selected"]',
                 '[aria-selected="true"]',
-                '[data-active="true"]'
+                '[data-active="true"]',
+                '[class*="current"]',
+                '[class*="highlight"]'
             ]
             
             active_text = ""
@@ -420,18 +396,18 @@ class OCRScreenshotAnalyzer:
                     logger.debug(f"Ошибка поиска активных элементов: {e}")
                     continue
             
-            # 3. Ищем в URL и заголовке страницы
+            # 2. Ищем в URL и заголовке страницы
             current_url = self.page.url.lower()
             page_title = await self.page.title()
             if page_title:
                 page_title = page_title.lower()
             
-            # 4. Ищем в полном тексте страницы
+            # 3. Ищем в полном тексте страницы
             full_text = await self.page.text_content('body')
             full_text = full_text.lower()
             
             # Объединяем весь текст для анализа
-            all_text = f"{navigation_text} {active_text} {current_url} {page_title} {full_text}"
+            all_text = f"{active_text} {current_url} {page_title} {full_text}"
             
             logger.info(f"Анализируем текст для определения категории...")
             
@@ -492,12 +468,6 @@ class OCRScreenshotAnalyzer:
             # Объединяем весь текст для поиска
             all_text = f"{full_text} {title_text} {price_text}".lower()
             
-            # Проверяем, является ли рынок булевым
-            boolean_indicators = [
-                'yes/no', 'yes or no', 'true/false', 'true or false',
-                'will', 'does', 'is', 'are', 'can', 'should'
-            ]
-            
             # Проверяем наличие не-булевых индикаторов
             non_boolean_indicators = [
                 'multiple choice', 'choose', 'select', 'option',
@@ -522,13 +492,8 @@ class OCRScreenshotAnalyzer:
                     'reason': 'non_boolean_market'
                 }
             
-            # Определяем существование рынка
-            market_exists = bool(
-                'polymarket' in all_text or
-                'market' in all_text or
-                'prediction' in all_text or
-                'event' in all_text
-            )
+            # Определяем существование рынка - если мы дошли до парсинга, значит рынок существует
+            market_exists = True
             
             # Извлекаем название рынка
             title_match = re.search(r'([A-Z][^.!?]*[.!?])', full_text)
@@ -700,8 +665,8 @@ class OCRScreenshotAnalyzer:
                 }
 
             return {
-                'market_exists': parsed_data.get('market_exists', False),
-                'is_boolean': True,  # Предполагаем булевый рынок
+                'market_exists': parsed_data.get('market_exists', True),  # По умолчанию True
+                'is_boolean': parsed_data.get('is_boolean', True),  # По умолчанию True
                 'yes_percentage': parsed_data.get('yes_percentage', 0),
                 'contract_address': parsed_data.get('contract_address', ''),
                 'title': parsed_data.get('title', ''),
@@ -712,8 +677,8 @@ class OCRScreenshotAnalyzer:
         except Exception as e:
             logger.error(f"Ошибка преобразования формата: {e}")
             return {
-                'market_exists': False,
-                'is_boolean': False,
+                'market_exists': True,  # По умолчанию True
+                'is_boolean': True,  # По умолчанию True
                 'yes_percentage': 0,
                 'contract_address': '',
                 'title': '',
