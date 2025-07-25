@@ -261,6 +261,27 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting markets in progress: {e}")
             return []
+
+    def get_closed_markets_slugs(self):
+        """Получение slug'ов закрытых рынков для исключения из проверки"""
+        try:
+            if not self.conn:
+                if not self.connect():
+                    return []
+            
+            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor.execute("""
+                SELECT slug
+                FROM mkrt_analytic
+                WHERE status LIKE 'закрыт%'
+            """)
+            
+            markets = cursor.fetchall()
+            cursor.close()
+            return [market['slug'] for market in markets]
+        except Exception as e:
+            logger.error(f"Error getting closed markets slugs: {e}")
+            return []
     
     def close_connections(self):
         """Закрытие соединения с базой данных"""

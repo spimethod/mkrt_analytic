@@ -93,6 +93,10 @@ class MarketAnalysisBot:
             in_progress_slugs = {market['slug'] for market in markets_in_progress}
             logger.info(f"Found {len(in_progress_slugs)} markets already in progress")
             
+            # Получаем список закрытых рынков для исключения
+            closed_slugs = self.db_manager.get_closed_markets_slugs()
+            logger.info(f"Found {len(closed_slugs)} closed markets to exclude")
+            
             # Получаем рынки, которые превысили время анализа
             exceeded_markets = self.db_manager.get_markets_exceeded_analysis_time(ANALYSIS_TIME_MINUTES)
             exceeded_slugs = {market['slug'] for market in exceeded_markets}
@@ -112,6 +116,11 @@ class MarketAnalysisBot:
                 # Проверяем, не в работе ли уже этот рынок
                 if market_slug in in_progress_slugs:
                     logger.info(f"Market {market_slug} is already in progress in database, skipping")
+                    continue
+                
+                # Проверяем, не закрыт ли уже этот рынок
+                if market_slug in closed_slugs:
+                    logger.info(f"Market {market_slug} is already closed, skipping")
                     continue
                 
                 # Проверяем, не превысил ли рынок время анализа
