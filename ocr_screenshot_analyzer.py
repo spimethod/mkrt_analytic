@@ -180,9 +180,11 @@ class OCRScreenshotAnalyzer:
                     for element in elements:
                         href = await element.get_attribute('href')
                         if href and '0x' in href:
-                            contract_link = element
-                            logger.info(f"✔ Найдена ссылка с контрактом: {href}")
-                            break
+                            # Проверяем, что это не просто частичный адрес
+                            if len(href) > 20:  # Должен быть достаточно длинным
+                                contract_link = element
+                                logger.info(f"✔ Найдена ссылка с контрактом: {href}")
+                                break
                     
                     if contract_link:
                         break
@@ -273,6 +275,16 @@ class OCRScreenshotAnalyzer:
             contract_matches = re.findall(r'0x[a-fA-F0-9]{40}', page_text)
             if contract_matches:
                 return contract_matches[0]
+            
+            # Если не нашли полный адрес, ищем частичный и попробуем его расширить
+            partial_matches = re.findall(r'0x[a-fA-F0-9]{10,}', page_text)
+            if partial_matches:
+                logger.info(f"🔍 Найден частичный адрес: {partial_matches[0]}")
+                # Попробуем найти полный адрес в других местах
+                for match in partial_matches:
+                    if len(match) >= 20:  # Если достаточно длинный, может быть полным
+                        logger.info(f"✅ Используем найденный адрес: {match}")
+                        return match
             
             return None
             
