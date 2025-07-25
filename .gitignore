@@ -1,4 +1,13 @@
-# Python
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+.atom/
+.brackets.json
+
+# Python cache
 __pycache__/
 *.py[cod]
 *$py.class
@@ -25,12 +34,7 @@ MANIFEST
 venv/
 env/
 ENV/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+.venv/
 
 # Logs
 *.log
