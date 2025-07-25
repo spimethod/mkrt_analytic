@@ -3,21 +3,23 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Database configurations
+# Database configurations - using Railway's standard PostgreSQL variables
+# For Polymarket database (markets)
 POLYMARKET_DB_CONFIG = {
-    'host': os.getenv('POLYMARKET_DB_HOST', 'localhost'),
-    'port': os.getenv('POLYMARKET_DB_PORT', '5432'),
-    'database': os.getenv('POLYMARKET_DB_NAME', 'markets'),
-    'user': os.getenv('POLYMARKET_DB_USER', 'postgres'),
-    'password': os.getenv('POLYMARKET_DB_PASSWORD', ''),
+    'host': os.getenv('POLYMARKET_PGHOST', os.getenv('PGHOST', 'localhost')),
+    'port': os.getenv('POLYMARKET_PGPORT', os.getenv('PGPORT', '5432')),
+    'database': os.getenv('POLYMARKET_PGDATABASE', 'markets'),
+    'user': os.getenv('POLYMARKET_PGUSER', os.getenv('PGUSER', 'postgres')),
+    'password': os.getenv('POLYMARKET_PGPASSWORD', os.getenv('PGPASSWORD', '')),
 }
 
+# For Analytic database (mkrt_analytic)
 ANALYTIC_DB_CONFIG = {
-    'host': os.getenv('ANALYTIC_DB_HOST', 'localhost'),
-    'port': os.getenv('ANALYTIC_DB_PORT', '5432'),
-    'database': os.getenv('ANALYTIC_DB_NAME', 'mkrt_analytic'),
-    'user': os.getenv('ANALYTIC_DB_USER', 'postgres'),
-    'password': os.getenv('ANALYTIC_DB_PASSWORD', ''),
+    'host': os.getenv('ANALYTIC_PGHOST', os.getenv('PGHOST', 'localhost')),
+    'port': os.getenv('ANALYTIC_PGPORT', os.getenv('PGPORT', '5432')),
+    'database': os.getenv('ANALYTIC_PGDATABASE', 'mkrt_analytic'),
+    'user': os.getenv('ANALYTIC_PGUSER', os.getenv('PGUSER', 'postgres')),
+    'password': os.getenv('ANALYTIC_PGPASSWORD', os.getenv('PGPASSWORD', '')),
 }
 
 # Telegram configuration
