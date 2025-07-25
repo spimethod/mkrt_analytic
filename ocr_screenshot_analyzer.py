@@ -131,151 +131,112 @@ class OCRScreenshotAnalyzer:
             return {}
     
     async def extract_contract_address(self):
-        """Извлечение правильного адреса контракта через клик Show more → клик на адрес → переход"""
+        """Извлечение адреса контракта через клик на Show more"""
         try:
-            logger.info("🔍 Начинаем извлечение контракта...")
-            
-            # 1. Ищем кнопку "Show more" в области контракта
+            # 1. Ищем кнопку "Show more"
             show_more_selectors = [
                 'button:has-text("Show more")',
                 'a:has-text("Show more")',
                 '[class*="show-more"]',
                 '[class*="expand"]',
-                'button:has-text("Show")',
-                'a:has-text("Show")',
-                'text=Show more',
-                '[data-testid*="show-more"]'
+                'button[aria-label*="more"]',
+                'a[aria-label*="more"]'
             ]
             
-            show_more_clicked = False
+            show_more_button = None
             for selector in show_more_selectors:
                 try:
                     show_more_button = await self.page.query_selector(selector)
                     if show_more_button:
-                        logger.info(f"✅ Найдена кнопка Show more: {selector}")
-                        # Кликаем на "Show more"
-                        await show_more_button.click()
-                        await asyncio.sleep(3)
-                        show_more_clicked = True
-                        logger.info("✅ Кликнули на Show more")
+                        logger.info(f"✔ Найдена кнопка Show more: {selector}")
                         break
-                except Exception as e:
-                    logger.warning(f"❌ Не удалось кликнуть на {selector}: {e}")
+                except:
                     continue
             
-            if not show_more_clicked:
-                logger.warning("⚠️ Кнопка Show more не найдена")
+            if not show_more_button:
+                logger.warning("❌ Кнопка Show more не найдена")
+                return await self.extract_full_contract_from_page()
             
-            # 2. Ищем частичный адрес контракта (начинается с 0x)
-            contract_address_selectors = [
+            # 2. Кликаем на Show more
+            await show_more_button.click()
+            logger.info("✔ Кликнули на Show more")
+            await asyncio.sleep(2)  # Ждем загрузки контента
+            
+            # 3. Ищем ссылку с частичным адресом контракта
+            contract_link_selectors = [
                 'a[href*="0x"]',
                 '[class*="contract"] a',
                 '[class*="address"] a',
                 'a[href*="/event/"]',
-                '[class*="hex"] a',
-                'a:has-text("0x")',
-                'text=/0x[a-fA-F0-9]{10,}/'
+                'a[href*="/market/"]'
             ]
             
             contract_link = None
-            for selector in contract_address_selectors:
+            for selector in contract_link_selectors:
                 try:
-                    contract_elements = await self.page.query_selector_all(selector)
-                    logger.info(f"🔍 Проверяем селектор {selector}: найдено {len(contract_elements)} элементов")
-                    for element in contract_elements:
-                        element_text = await element.text_content()
-                        if element_text and '0x' in element_text:
-                            logger.info(f"✅ Найден элемент с адресом: {element_text[:20]}...")
+                    elements = await self.page.query_selector_all(selector)
+                    logger.info(f"🔍 Проверяем селектор {selector}: найдено {len(elements)} элементов")
+                    
+                    for element in elements:
+                        href = await element.get_attribute('href')
+                        if href and '0x' in href:
                             contract_link = element
+                            logger.info(f"✔ Найдена ссылка с контрактом: {href}")
                             break
+                    
                     if contract_link:
                         break
                 except Exception as e:
-                    logger.warning(f"❌ Ошибка с селектором {selector}: {e}")
+                    logger.warning(f"Ошибка поиска по селектору {selector}: {e}")
                     continue
             
             if not contract_link:
-                logger.info("🔍 Ищем адрес в тексте страницы...")
-                # Ищем в тексте страницы
-                page_text = await self.page.text_content('body')
-                contract_matches = re.findall(r'0x[a-fA-F0-9]{10,}', page_text)
-                if contract_matches:
-                    logger.info(f"✅ Найден адрес в тексте: {contract_matches[0][:20]}...")
-                    # Ищем ссылку с этим адресом
-                    for selector in ['a[href*="0x"]', 'a:has-text("0x")']:
-                        try:
-                            elements = await self.page.query_selector_all(selector)
-                            for element in elements:
-                                element_text = await element.text_content()
-                                if contract_matches[0] in element_text:
-                                    contract_link = element
-                                    logger.info(f"✅ Найдена ссылка с адресом: {element_text[:20]}...")
-                                    break
-                            if contract_link:
-                                break
-                        except Exception as e:
-                            logger.warning(f"❌ Ошибка поиска ссылки: {e}")
-                            continue
+                logger.warning("❌ Ссылка с контрактом не найдена")
+                return await self.extract_full_contract_from_page()
             
-            if not contract_link:
-                logger.error("❌ Не найден элемент с адресом контракта")
-                return None
+            # 4. Получаем href ссылки
+            href = await contract_link.get_attribute('href')
+            if not href:
+                logger.warning("❌ Href ссылки пустой")
+                return await self.extract_full_contract_from_page()
             
-            # 3. Кликаем на адрес контракта и переходим на страницу контракта
+            # 5. Открываем новую страницу с полным адресом
             try:
-                logger.info("🔄 Кликаем на адрес контракта...")
+                # Создаем новую страницу
+                new_page = await self.browser.new_page()
+                await new_page.set_extra_http_headers({
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                })
                 
-                # Получаем href ссылки
-                href = await contract_link.get_attribute('href')
-                logger.info(f"🔗 Href ссылки: {href}")
+                # Переходим по ссылке
+                await new_page.goto(href, wait_until='domcontentloaded', timeout=30000)
+                await asyncio.sleep(2)
                 
-                if href:
-                    # Открываем ссылку в новой вкладке
-                    logger.info("🔄 Открываем ссылку в новой вкладке...")
-                    new_page = await self.browser.new_page()
-                    await new_page.goto(href, wait_until='domcontentloaded', timeout=30000)
-                    await asyncio.sleep(3)
-                    
-                    # Проверяем URL новой страницы
-                    new_url = new_page.url
-                    logger.info(f"🌐 Новая страница: {new_url}")
-                    
-                    # Извлекаем контракт с новой страницы
-                    contract_address = await self.extract_full_contract_from_page_new_page(new_page)
-                    
-                    # Закрываем новую вкладку
+                # Извлекаем полный адрес с новой страницы
+                full_contract = await self.extract_full_contract_from_page_new_page(new_page)
+                
+                if full_contract:
+                    logger.info(f"✅ Полный контракт извлечен: {full_contract}")
                     await new_page.close()
-                    
-                    if contract_address:
-                        logger.info(f"✅ Извлечен контракт: {contract_address}")
-                        return contract_address
-                    else:
-                        logger.error("❌ Не удалось извлечь контракт с новой страницы")
-                        return None
+                    return full_contract
                 else:
-                    # Если нет href, пробуем обычный клик
-                    logger.info("🔄 Пробуем обычный клик...")
-                    await contract_link.click()
-                    await asyncio.sleep(5)
+                    # Если не нашли на новой странице, ищем в URL
+                    current_url = new_page.url
+                    contract_match = re.search(r'0x[a-fA-F0-9]{40}', current_url)
+                    if contract_match:
+                        full_contract = contract_match.group()
+                        logger.info(f"✅ Контракт найден в URL: {full_contract}")
+                        await new_page.close()
+                        return full_contract
                     
-                    # Проверяем, что перешли на новую страницу
-                    new_url = self.page.url
-                    logger.info(f"🌐 Перешли на страницу: {new_url}")
-                    
-                    # 4. Извлекаем полный адрес контракта с новой страницы
-                    contract_address = await self.extract_full_contract_from_page()
-                    
-                    if contract_address:
-                        logger.info(f"✅ Извлечен контракт: {contract_address}")
-                        return contract_address
-                    else:
-                        logger.error("❌ Не удалось извлечь контракт с новой страницы")
-                        return None
+                    await new_page.close()
+                    logger.warning("❌ Полный контракт не найден на новой странице")
+                    return await self.extract_full_contract_from_page()
                     
             except Exception as e:
-                logger.error(f"❌ Ошибка при клике на адрес: {e}")
-                return None
-                
+                logger.error(f"❌ Ошибка при открытии новой страницы: {e}")
+                return await self.extract_full_contract_from_page()
+            
         except Exception as e:
             logger.error(f"❌ Ошибка извлечения контракта: {e}")
             return None
