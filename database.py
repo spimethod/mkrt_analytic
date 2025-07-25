@@ -8,37 +8,27 @@ logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     def __init__(self):
-        self.polymarket_conn = None
-        self.analytic_conn = None
+        self.conn = None
     
-    def connect_polymarket(self):
-        """Подключение к базе данных Polymarket"""
+    def connect(self):
+        """Подключение к базе данных"""
         try:
-            self.polymarket_conn = psycopg2.connect(**POLYMARKET_DB_CONFIG)
-            logger.info("Connected to Polymarket database")
+            # Используем одну конфигурацию для обеих таблиц
+            self.conn = psycopg2.connect(**POLYMARKET_DB_CONFIG)
+            logger.info("Connected to database")
             return True
         except Exception as e:
-            logger.error(f"Failed to connect to Polymarket database: {e}")
-            return False
-    
-    def connect_analytic(self):
-        """Подключение к аналитической базе данных"""
-        try:
-            self.analytic_conn = psycopg2.connect(**ANALYTIC_DB_CONFIG)
-            logger.info("Connected to Analytic database")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to connect to Analytic database: {e}")
+            logger.error(f"Failed to connect to database: {e}")
             return False
     
     def get_new_markets(self):
-        """Получение новых рынков из базы Polymarket"""
+        """Получение новых рынков из таблицы markets"""
         try:
-            if not self.polymarket_conn:
-                if not self.connect_polymarket():
+            if not self.conn:
+                if not self.connect():
                     return []
             
-            cursor = self.polymarket_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("""
                 SELECT id, question, created_at, active, enable_order_book, slug
                 FROM markets
@@ -54,13 +44,13 @@ class DatabaseManager:
             return []
     
     def insert_market_to_analytic(self, market_data):
-        """Добавление рынка в аналитическую базу"""
+        """Добавление рынка в аналитическую таблицу mkrt_analytic"""
         try:
-            if not self.analytic_conn:
-                if not self.connect_analytic():
+            if not self.conn:
+                if not self.connect():
                     return False
             
-            cursor = self.analytic_conn.cursor()
+            cursor = self.conn.cursor()
             cursor.execute("""
                 INSERT INTO mkrt_analytic 
                 (polymarket_id, question, created_at, active, enable_order_book, slug, 
@@ -88,24 +78,24 @@ class DatabaseManager:
             ))
             
             market_id = cursor.fetchone()[0]
-            self.analytic_conn.commit()
+            self.conn.commit()
             cursor.close()
             logger.info(f"Market {market_data['slug']} inserted/updated in analytic database")
             return market_id
         except Exception as e:
             logger.error(f"Error inserting market to analytic: {e}")
-            if self.analytic_conn:
-                self.analytic_conn.rollback()
+            if self.conn:
+                self.conn.rollback()
             return None
     
     def update_market_analysis(self, market_id, analysis_data):
         """Обновление данных анализа рынка"""
         try:
-            if not self.analytic_conn:
-                if not self.connect_analytic():
+            if not self.conn:
+                if not self.connect():
                     return False
             
-            cursor = self.analytic_conn.cursor()
+            cursor = self.conn.cursor()
             cursor.execute("""
                 UPDATE mkrt_analytic 
                 SET market_exists = %s, is_boolean = %s, yes_percentage = %s,
@@ -124,24 +114,24 @@ class DatabaseManager:
                 market_id
             ))
             
-            self.analytic_conn.commit()
+            self.conn.commit()
             cursor.close()
             logger.info(f"Market analysis updated for ID {market_id}")
             return True
         except Exception as e:
             logger.error(f"Error updating market analysis: {e}")
-            if self.analytic_conn:
-                self.analytic_conn.rollback()
+            if self.conn:
+                self.conn.rollback()
             return False
     
     def get_market_by_slug(self, slug):
-        """Получение рынка по slug из аналитической базы"""
+        """Получение рынка по slug из аналитической таблицы"""
         try:
-            if not self.analytic_conn:
-                if not self.connect_analytic():
+            if not self.conn:
+                if not self.connect():
                     return None
             
-            cursor = self.analytic_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("""
                 SELECT * FROM mkrt_analytic WHERE slug = %s
             """, (slug,))
@@ -156,11 +146,11 @@ class DatabaseManager:
     def get_active_markets(self):
         """Получение всех активных рынков"""
         try:
-            if not self.analytic_conn:
-                if not self.connect_analytic():
+            if not self.conn:
+                if not self.connect():
                     return []
             
-            cursor = self.analytic_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("""
                 SELECT * FROM mkrt_analytic WHERE status = 'в работе'
             """)
@@ -173,9 +163,7 @@ class DatabaseManager:
             return []
     
     def close_connections(self):
-        """Закрытие соединений с базами данных"""
-        if self.polymarket_conn:
-            self.polymarket_conn.close()
-        if self.analytic_conn:
-            self.analytic_conn.close()
-        logger.info("Database connections closed") 
+        """Закрытие соединения с базой данных"""
+        if self.conn:
+            self.conn.close()
+        logger.info("Database connection closed") 

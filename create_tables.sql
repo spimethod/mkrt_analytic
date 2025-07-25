@@ -1,4 +1,7 @@
--- Создание таблицы для аналитической базы данных
+-- Создание таблицы mkrt_analytic в той же базе данных
+-- Убедитесь, что вы подключены к базе данных с таблицей markets
+
+-- Создание таблицы для аналитических данных
 CREATE TABLE IF NOT EXISTS mkrt_analytic (
     id SERIAL PRIMARY KEY,
     polymarket_id INTEGER UNIQUE NOT NULL,
