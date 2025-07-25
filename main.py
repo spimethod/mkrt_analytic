@@ -21,10 +21,12 @@ class MarketAnalysisBot:
         self.telegram_logger = TelegramLogger()
         self.active_markets = {}  # {market_id: {'start_time': datetime, 'last_log': datetime}}
         self.running = False
+        self.bot_start_time = None  # Время запуска бота для фильтрации новых рынков
     
     def start(self):
         """Запуск бота"""
         logger.info("Starting Market Analysis Bot")
+        self.bot_start_time = datetime.now()  # Запоминаем время запуска
         self.telegram_logger.log_bot_start()
         self.running = True
         
@@ -75,7 +77,13 @@ class MarketAnalysisBot:
     def check_new_markets(self):
         """Проверка новых рынков каждые 30 секунд"""
         try:
-            markets = self.db_manager.get_new_markets()
+            # Получаем только рынки, созданные после запуска бота
+            if self.bot_start_time:
+                markets = self.db_manager.get_new_markets_after_time(self.bot_start_time)
+                logger.info(f"Checking for new markets created after {self.bot_start_time}")
+            else:
+                markets = self.db_manager.get_new_markets()
+                logger.warning("Bot start time not set, using all markets")
             
             for market in markets:
                 # Проверяем, не анализируем ли уже этот рынок (по ID и slug)
@@ -105,7 +113,7 @@ class MarketAnalysisBot:
                             
                             # Логируем новый рынок
                             self.telegram_logger.log_new_market(market)
-                            logger.info(f"Started analysis for market: {market['slug']}")
+                            logger.info(f"Started analysis for NEW market: {market['slug']} (created: {market['created_at']})")
                             
                             # Запускаем анализ в отдельном потоке
                             analysis_thread = threading.Thread(
@@ -142,8 +150,14 @@ class MarketAnalysisBot:
                 if analysis_data:
                     # Проверяем, является ли рынок булевым
                     if not analysis_data.get('is_boolean', True):
-                        logger.info(f"Market {slug} is not boolean - closing analysis")
-                        self.stop_market_analysis(market_id, "закрыт (не булевый)")
+                        reason = analysis_data.get('reason', 'non_boolean')
+                        if reason.startswith('category_'):
+                            category = reason.replace('category_', '')
+                            logger.info(f"Market {slug} is {category.upper()} category - closing analysis")
+                            self.stop_market_analysis(market_id, f"закрыт ({category})")
+                        else:
+                            logger.info(f"Market {slug} is not boolean - closing analysis")
+                            self.stop_market_analysis(market_id, "закрыт (не булевый)")
                         break
                     
                     # Конвертируем данные в нужный формат для базы

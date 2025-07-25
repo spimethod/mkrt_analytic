@@ -367,6 +367,64 @@ class OCRScreenshotAnalyzer:
             logger.error(f"Ошибка извлечения текста: {e}")
             return ""
     
+    async def detect_market_category(self):
+        """Определение категории рынка (Sports/Crypto/Other)"""
+        try:
+            # Ищем навигационные элементы с категориями
+            category_selectors = [
+                '[class*="nav"]',
+                '[class*="tab"]',
+                '[class*="category"]',
+                'nav',
+                'header'
+            ]
+            
+            category_text = ""
+            for selector in category_selectors:
+                try:
+                    elements = await self.page.query_selector_all(selector)
+                    for element in elements:
+                        text = await element.text_content()
+                        if text:
+                            category_text += text.lower() + " "
+                except:
+                    continue
+            
+            # Ищем также в полном тексте страницы
+            full_text = await self.page.text_content('body')
+            category_text += full_text.lower()
+            
+            # Определяем категорию
+            sports_indicators = [
+                'sports', 'mlb', 'nba', 'nfl', 'wnba', 'golf', 'epl', 'cfb',
+                'baseball', 'basketball', 'football', 'soccer', 'tennis',
+                'game', 'match', 'team', 'player', 'score'
+            ]
+            
+            crypto_indicators = [
+                'crypto', 'bitcoin', 'ethereum', 'btc', 'eth', 'blockchain',
+                'token', 'coin', 'defi', 'nft', 'web3', 'mining'
+            ]
+            
+            # Проверяем Sports
+            for indicator in sports_indicators:
+                if indicator in category_text:
+                    logger.info(f"⚠️ Рынок определен как Sports (индикатор: {indicator})")
+                    return 'sports'
+            
+            # Проверяем Crypto
+            for indicator in crypto_indicators:
+                if indicator in category_text:
+                    logger.info(f"⚠️ Рынок определен как Crypto (индикатор: {indicator})")
+                    return 'crypto'
+            
+            logger.info("✅ Рынок не относится к Sports/Crypto категориям")
+            return 'other'
+            
+        except Exception as e:
+            logger.error(f"Ошибка определения категории рынка: {e}")
+            return 'other'
+    
     def parse_data_with_regex(self, extracted_data):
         """Парсинг данных с помощью RegEx"""
         try:
@@ -507,6 +565,20 @@ class OCRScreenshotAnalyzer:
                 logger.warning(f"Не удалось извлечь данные для {slug}")
                 return None
             
+            # Определяем категорию рынка
+            market_category = await self.detect_market_category()
+            
+            # Если рынок Sports или Crypto - закрываем анализ
+            if market_category in ['sports', 'crypto']:
+                logger.warning(f"⚠️ Рынок {slug} относится к категории {market_category.upper()} - закрываем анализ")
+                return {
+                    'market_exists': True,
+                    'is_boolean': False,
+                    'status': 'closed',
+                    'reason': f'category_{market_category}',
+                    'category': market_category
+                }
+            
             # Извлекаем контракт отдельно
             contract_address = await self.extract_contract_address()
             if contract_address:
@@ -519,6 +591,9 @@ class OCRScreenshotAnalyzer:
             # Если контракт был извлечен, используем его
             if contract_address and not parsed_data.get('contract_address'):
                 parsed_data['contract_address'] = contract_address
+            
+            # Добавляем категорию в данные
+            parsed_data['category'] = market_category
             
             # Сохраняем извлеченные данные
             await self.save_extracted_data(extracted_data, parsed_data, slug)

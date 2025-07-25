@@ -45,6 +45,29 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting new markets: {e}")
             return []
+
+    def get_new_markets_after_time(self, start_time):
+        """Получение только новых рынков, созданных после указанного времени"""
+        try:
+            if not self.conn:
+                if not self.connect():
+                    return []
+            
+            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor.execute("""
+                SELECT id, question, created_at, active, enable_order_book, slug
+                FROM markets
+                WHERE created_at > %s
+                ORDER BY created_at DESC
+                LIMIT 10
+            """, (start_time,))
+            
+            markets = cursor.fetchall()
+            cursor.close()
+            return markets
+        except Exception as e:
+            logger.error(f"Error getting new markets after time: {e}")
+            return []
     
     def market_exists_in_analytic(self, slug):
         """Проверка существования рынка в аналитической таблице по slug"""
