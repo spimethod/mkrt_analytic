@@ -85,10 +85,20 @@ class MarketAnalysisBot:
                 markets = self.db_manager.get_new_markets()
                 logger.warning("Bot start time not set, using all markets")
             
+            # Получаем список уже работающих рынков
+            markets_in_progress = self.db_manager.get_markets_in_progress()
+            in_progress_slugs = {market['slug'] for market in markets_in_progress}
+            logger.info(f"Found {len(in_progress_slugs)} markets already in progress")
+            
             for market in markets:
                 # Проверяем, не анализируем ли уже этот рынок (по ID и slug)
                 market_id = market['id']
                 market_slug = market['slug']
+                
+                # Проверяем, не в работе ли уже этот рынок
+                if market_slug in in_progress_slugs:
+                    logger.info(f"Market {market_slug} is already in progress in database, skipping")
+                    continue
                 
                 # Проверяем по ID
                 if market_id not in self.active_markets:

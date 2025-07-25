@@ -368,58 +368,107 @@ class OCRScreenshotAnalyzer:
             return ""
     
     async def detect_market_category(self):
-        """Определение категории рынка (Sports/Crypto/Other)"""
+        """Определение категории рынка (Sports/Crypto/Other) через скрабинг"""
         try:
-            # Ищем навигационные элементы с категориями
-            category_selectors = [
-                '[class*="nav"]',
+            # 1. Ищем навигационные табы (как показано на скрине)
+            tab_selectors = [
+                'nav a',
+                '[role="tab"]',
                 '[class*="tab"]',
-                '[class*="category"]',
-                'nav',
-                'header'
+                '[class*="nav"] a',
+                'header a',
+                '[class*="category"]'
             ]
             
-            category_text = ""
-            for selector in category_selectors:
+            navigation_text = ""
+            for selector in tab_selectors:
                 try:
                     elements = await self.page.query_selector_all(selector)
                     for element in elements:
                         text = await element.text_content()
                         if text:
-                            category_text += text.lower() + " "
-                except:
+                            navigation_text += text.lower() + " "
+                            logger.info(f"Найден навигационный элемент: {text}")
+                except Exception as e:
+                    logger.debug(f"Ошибка поиска по селектору {selector}: {e}")
                     continue
             
-            # Ищем также в полном тексте страницы
-            full_text = await self.page.text_content('body')
-            category_text += full_text.lower()
+            # 2. Ищем активные/выделенные табы
+            active_selectors = [
+                '[class*="active"]',
+                '[class*="selected"]',
+                '[aria-selected="true"]',
+                '[data-active="true"]'
+            ]
             
-            # Определяем категорию
+            active_text = ""
+            for selector in active_selectors:
+                try:
+                    elements = await self.page.query_selector_all(selector)
+                    for element in elements:
+                        text = await element.text_content()
+                        if text:
+                            active_text += text.lower() + " "
+                            logger.info(f"Найден активный элемент: {text}")
+                except Exception as e:
+                    logger.debug(f"Ошибка поиска активных элементов: {e}")
+                    continue
+            
+            # 3. Ищем в URL и заголовке страницы
+            current_url = self.page.url.lower()
+            page_title = await self.page.title()
+            if page_title:
+                page_title = page_title.lower()
+            
+            # 4. Ищем в полном тексте страницы
+            full_text = await self.page.text_content('body')
+            full_text = full_text.lower()
+            
+            # Объединяем весь текст для анализа
+            all_text = f"{navigation_text} {active_text} {current_url} {page_title} {full_text}"
+            
+            logger.info(f"Анализируем текст для определения категории...")
+            
+            # Определяем категорию с более точными индикаторами
             sports_indicators = [
                 'sports', 'mlb', 'nba', 'nfl', 'wnba', 'golf', 'epl', 'cfb',
                 'baseball', 'basketball', 'football', 'soccer', 'tennis',
-                'game', 'match', 'team', 'player', 'score'
+                'game', 'match', 'team', 'player', 'score', 'live',
+                'starting soon', 'trending', 'new', 'politics', 'middle east'
             ]
             
             crypto_indicators = [
                 'crypto', 'bitcoin', 'ethereum', 'btc', 'eth', 'blockchain',
-                'token', 'coin', 'defi', 'nft', 'web3', 'mining'
+                'token', 'coin', 'defi', 'nft', 'web3', 'mining',
+                'cryptocurrency', 'digital currency'
             ]
             
-            # Проверяем Sports
+            # Проверяем Sports с подсчетом совпадений
+            sports_score = 0
             for indicator in sports_indicators:
-                if indicator in category_text:
-                    logger.info(f"⚠️ Рынок определен как Sports (индикатор: {indicator})")
-                    return 'sports'
+                if indicator in all_text:
+                    sports_score += 1
+                    logger.info(f"Найден Sports индикатор: {indicator}")
             
-            # Проверяем Crypto
+            # Проверяем Crypto с подсчетом совпадений
+            crypto_score = 0
             for indicator in crypto_indicators:
-                if indicator in category_text:
-                    logger.info(f"⚠️ Рынок определен как Crypto (индикатор: {indicator})")
-                    return 'crypto'
+                if indicator in all_text:
+                    crypto_score += 1
+                    logger.info(f"Найден Crypto индикатор: {indicator}")
             
-            logger.info("✅ Рынок не относится к Sports/Crypto категориям")
-            return 'other'
+            logger.info(f"Sports score: {sports_score}, Crypto score: {crypto_score}")
+            
+            # Определяем категорию на основе количества совпадений
+            if sports_score > 0:
+                logger.info(f"⚠️ Рынок определен как Sports (score: {sports_score})")
+                return 'sports'
+            elif crypto_score > 0:
+                logger.info(f"⚠️ Рынок определен как Crypto (score: {crypto_score})")
+                return 'crypto'
+            else:
+                logger.info("✅ Рынок не относится к Sports/Crypto категориям")
+                return 'other'
             
         except Exception as e:
             logger.error(f"Ошибка определения категории рынка: {e}")

@@ -215,6 +215,27 @@ class DatabaseManager:
             logger.error(f"Error getting active markets: {e}")
             return []
     
+    def get_markets_in_progress(self):
+        """Получение рынков, которые уже в работе (статус 'в работе')"""
+        try:
+            if not self.conn:
+                if not self.connect():
+                    return []
+            
+            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor.execute("""
+                SELECT id, slug, status
+                FROM mkrt_analytic
+                WHERE status = 'в работе'
+            """)
+            
+            markets = cursor.fetchall()
+            cursor.close()
+            return markets
+        except Exception as e:
+            logger.error(f"Error getting markets in progress: {e}")
+            return []
+    
     def close_connections(self):
         """Закрытие соединения с базой данных"""
         if self.conn:
