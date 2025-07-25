@@ -202,6 +202,17 @@ class OCRScreenshotAnalyzer:
                 logger.warning("❌ Href ссылки пустой")
                 return await self.extract_full_contract_from_page()
             
+            # Проверяем, что href - это валидный URL
+            if not href.startswith('http'):
+                # Если это относительный URL, делаем его абсолютным
+                current_url = self.page.url
+                if href.startswith('/'):
+                    href = f"https://polymarket.com{href}"
+                else:
+                    href = f"{current_url.rstrip('/')}/{href}"
+            
+            logger.info(f"🔗 Используем URL: {href}")
+            
             # 5. Открываем новую страницу с полным адресом
             try:
                 # Создаем новую страницу
@@ -356,136 +367,107 @@ class OCRScreenshotAnalyzer:
     def parse_data_with_regex(self, extracted_data):
         """Парсинг данных с помощью RegEx"""
         try:
-            parsed_data = {
-                'title': '',
-                'yes_percentage': 0.0,
-                'no_percentage': 0.0,
-                'contract_address': '',
-                'volume': '',
-                'market_exists': False
-            }
+            parsed_data = {}
+            
+            # Извлекаем текст из всех областей
+            full_text = extracted_data.get('full_page_text', '')
+            title_text = extracted_data.get('title_text', '')
+            price_text = extracted_data.get('price_text', '')
             
             # Объединяем весь текст для поиска
-            all_text = ' '.join(extracted_data.values())
+            all_text = f"{full_text} {title_text} {price_text}".lower()
             
-            # 1. Ищем заголовок
-            title_text = extracted_data.get('title_text', '')
-            if title_text:
-                parsed_data['title'] = title_text.strip()
-            else:
-                # Ищем в полном тексте
-                title_patterns = [
-                    r'Will.*?\?',
-                    r'[A-Z][^.!?]*\?',
-                    r'[A-Z][^.!?]*market',
-                    r'[A-Z][^.!?]*prediction'
-                ]
-                for pattern in title_patterns:
-                    matches = re.findall(pattern, all_text, re.IGNORECASE)
-                    if matches:
-                        parsed_data['title'] = matches[0].strip()
-                        break
-            
-            # 2. Ищем проценты Yes/No
-            # Ищем кнопки с ценами в центах
-            price_patterns = [
-                r'Yes\s*(\d+(?:\.\d+)?)¢',
-                r'(\d+(?:\.\d+)?)¢\s*Yes',
-                r'No\s*(\d+(?:\.\d+)?)¢',
-                r'(\d+(?:\.\d+)?)¢\s*No',
-                r'Yes\s*(\d+(?:\.\d+)?)%',
-                r'(\d+(?:\.\d+)?)%\s*Yes',
-                r'No\s*(\d+(?:\.\d+)?)%',
-                r'(\d+(?:\.\d+)?)%\s*No',
-                r'(\d+(?:\.\d+)?)%\s*chance',
-                r'chance\s*(\d+(?:\.\d+)?)%'
+            # Проверяем, является ли рынок булевым
+            boolean_indicators = [
+                'yes/no', 'yes or no', 'true/false', 'true or false',
+                'will', 'does', 'is', 'are', 'can', 'should'
             ]
             
-            yes_price = None
-            no_price = None
+            is_boolean_market = False
+            for indicator in boolean_indicators:
+                if indicator in all_text:
+                    is_boolean_market = True
+                    break
             
+            # Если рынок не булевый, возвращаем специальный статус
+            if not is_boolean_market:
+                logger.warning("⚠️ Рынок не является булевым - закрываем анализ")
+                return {
+                    'market_exists': True,
+                    'is_boolean': False,
+                    'status': 'closed',
+                    'reason': 'non_boolean_market'
+                }
+            
+            # Извлекаем название рынка
+            title_match = re.search(r'([A-Z][^.!?]*[.!?])', full_text)
+            if title_match:
+                parsed_data['title'] = title_match.group(1).strip()
+            else:
+                parsed_data['title'] = 'Market Title Not Found'
+            
+            # Извлекаем цены (проценты)
+            price_patterns = [
+                r'(\d+(?:\.\d+)?)\s*%',  # 50%
+                r'(\d+(?:\.\d+)?)\s*¢',   # 50¢
+                r'(\d+(?:\.\d+)?)\s*chance'  # 50% chance
+            ]
+            
+            yes_percentage = 0
             for pattern in price_patterns:
-                matches = re.findall(pattern, all_text, re.IGNORECASE)
+                matches = re.findall(pattern, all_text)
                 if matches:
                     try:
                         value = float(matches[0])
-                        if 'yes' in pattern.lower():
-                            yes_price = value
-                        elif 'no' in pattern.lower():
-                            no_price = value
-                        elif 'chance' in pattern.lower():
-                            # Если найден процент chance, это обычно для Yes
-                            yes_price = value
-                            no_price = 100 - value
+                        if '¢' in pattern or 'chance' in pattern:
+                            # Конвертируем центы в проценты
+                            yes_percentage = value
+                        else:
+                            yes_percentage = value
                         break
-                    except:
+                    except ValueError:
                         continue
             
-            # Если нашли цены в центах, конвертируем в проценты
-            if yes_price and no_price:
-                if yes_price < 100 and no_price < 100:  # Это центы
-                    parsed_data['yes_percentage'] = yes_price
-                    parsed_data['no_percentage'] = no_price
-                else:  # Это уже проценты
-                    parsed_data['yes_percentage'] = yes_price
-                    parsed_data['no_percentage'] = no_price
-            elif yes_price:
-                parsed_data['yes_percentage'] = yes_price
-                parsed_data['no_percentage'] = 100 - yes_price
-            elif no_price:
-                parsed_data['yes_percentage'] = 100 - no_price
-                parsed_data['no_percentage'] = no_price
+            parsed_data['yes_percentage'] = yes_percentage
             
-            # 3. Ищем адрес контракта
-            # Сначала проверяем извлеченный контракт
-            extracted_contract = extracted_data.get('extracted_contract', '')
-            if extracted_contract:
-                parsed_data['contract_address'] = extracted_contract
-                logger.info(f"✅ Используем извлеченный контракт: {extracted_contract}")
-            else:
-                # Ищем в полном тексте как fallback
-                contract_pattern = r'0x[a-fA-F0-9]{40}'
-                contract_matches = re.findall(contract_pattern, all_text)
-                if contract_matches:
-                    parsed_data['contract_address'] = contract_matches[0]
-                    logger.info(f"✅ Найден контракт в тексте: {contract_matches[0]}")
-                else:
-                    logger.warning("⚠️ Контракт не найден")
-            
-            # 4. Ищем объем торгов
+            # Извлекаем объем
             volume_patterns = [
-                r'\$(\d+(?:,\d{3})*(?:\.\d{2})?)',
-                r'(\d+(?:,\d{3})*(?:\.\d{2})?)\s*USD',
-                r'Volume.*?(\d+(?:,\d{3})*(?:\.\d{2})?)'
+                r'\$([\d,]+(?:\.\d{2})?)',  # $1,234.56
+                r'volume[:\s]*\$?([\d,]+)',  # volume: $1,234
+                r'total[:\s]*\$?([\d,]+)'    # total: $1,234
             ]
             
+            volume = 'New'
             for pattern in volume_patterns:
-                matches = re.findall(pattern, all_text)
-                if matches:
-                    parsed_data['volume'] = f"${matches[0]}"
-                    break
+                match = re.search(pattern, all_text)
+                if match:
+                    try:
+                        volume_value = match.group(1).replace(',', '')
+                        volume = f"${float(volume_value):,.2f}"
+                        break
+                    except ValueError:
+                        continue
             
-            # 5. Определяем существование рынка
-            parsed_data['market_exists'] = bool(
-                parsed_data['title'] or 
-                'polymarket' in all_text.lower() or
-                'prediction' in all_text.lower() or
-                'market' in all_text.lower()
-            )
+            parsed_data['volume'] = volume
             
-            logger.info(f"RegEx парсинг завершен: найдено {len([k for k, v in parsed_data.items() if v])} полей")
+            # Извлекаем контракт (если есть)
+            contract_match = re.search(r'0x[a-fA-F0-9]{40}', all_text)
+            if contract_match:
+                parsed_data['contract_address'] = contract_match.group()
+            else:
+                # Ищем частичный адрес
+                partial_match = re.search(r'0x[a-fA-F0-9]{10,}', all_text)
+                if partial_match:
+                    parsed_data['contract_address'] = partial_match.group()
+                else:
+                    parsed_data['contract_address'] = ''
+            
+            logger.info(f"RegEx парсинг завершен: найдено {len(parsed_data)} полей")
             return parsed_data
             
         except Exception as e:
-            logger.error(f"Ошибка RegEx парсинга: {e}")
-            return {
-                'title': '',
-                'yes_percentage': 0.0,
-                'no_percentage': 0.0,
-                'contract_address': '',
-                'volume': '',
-                'market_exists': False
-            }
+            logger.error(f"Ошибка парсинга данных: {e}")
+            return {}
     
     async def analyze_market(self, slug):
         """Полный анализ рынка через OCR"""
@@ -543,6 +525,18 @@ class OCRScreenshotAnalyzer:
     def convert_to_standard_format(self, parsed_data):
         """Преобразование в стандартный формат"""
         try:
+            # Обрабатываем специальный статус 'closed'
+            if parsed_data.get('status') == 'closed':
+                return {
+                    'market_exists': True,
+                    'is_boolean': False,
+                    'yes_percentage': 0,
+                    'contract_address': '',
+                    'title': parsed_data.get('title', ''),
+                    'description': '',
+                    'volume': parsed_data.get('volume', '')
+                }
+
             return {
                 'market_exists': parsed_data.get('market_exists', False),
                 'is_boolean': True,  # Предполагаем булевый рынок

@@ -129,6 +129,12 @@ class MarketAnalysisBot:
                 analysis_data = self.market_analyzer.get_market_data(slug)
                 
                 if analysis_data:
+                    # Проверяем, является ли рынок булевым
+                    if not analysis_data.get('is_boolean', True):
+                        logger.info(f"Market {slug} is not boolean - closing analysis")
+                        self.stop_market_analysis(market_id, "закрыт (не булевый)")
+                        break
+                    
                     # Конвертируем данные в нужный формат для базы
                     db_data = {
                         'market_exists': analysis_data.get('market_exists', False),
