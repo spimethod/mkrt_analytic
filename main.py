@@ -56,6 +56,19 @@ class MarketAnalysisBot:
         logger.info("Stopping Market Analysis Bot")
         self.running = False
         self.telegram_logger.log_bot_stop()
+        
+        # Закрываем HTTP клиент Telegram
+        try:
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(self.telegram_logger.close())
+            finally:
+                loop.close()
+        except Exception as e:
+            logger.error(f"Error closing Telegram HTTP client: {e}")
+        
         self.market_analyzer.close_driver()
         self.db_manager.close_connections()
     

@@ -1,7 +1,6 @@
 import asyncio
 import time
-from telegram import Bot
-from telegram.error import TelegramError
+import httpx
 import logging
 from config import TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, ANALYSIS_TIME_MINUTES, LOGGING_INTERVAL_MINUTES
 from datetime import datetime
@@ -13,10 +12,20 @@ class TelegramLogger:
         self.token = TELEGRAM_TOKEN
         self.chat_id = TELEGRAM_CHAT_ID
         self.last_message_time = 0
-        self.min_interval = 1.0  # Минимальный интервал между сообщениями (секунды)
+        self.min_interval = 2.0  # Увеличиваем минимальный интервал между сообщениями (секунды)
+        
+        # Настройка HTTP клиента с правильным пулом соединений
+        self.http_client = httpx.AsyncClient(
+            limits=httpx.Limits(
+                max_keepalive_connections=5,
+                max_connections=10,
+                keepalive_expiry=30.0
+            ),
+            timeout=httpx.Timeout(30.0)
+        )
     
     async def send_message(self, message):
-        """Отправка сообщения в Telegram с защитой от flood control"""
+        """Отправка сообщения в Telegram с правильным управлением соединениями"""
         if not self.token or not self.chat_id:
             logger.warning("Telegram bot not configured, skipping message")
             return False
@@ -24,30 +33,37 @@ class TelegramLogger:
         # Проверяем интервал между сообщениями
         current_time = time.time()
         if current_time - self.last_message_time < self.min_interval:
-            logger.info(f"Waiting {self.min_interval - (current_time - self.last_message_time):.1f}s to avoid flood control")
-            await asyncio.sleep(self.min_interval - (current_time - self.last_message_time))
+            wait_time = self.min_interval - (current_time - self.last_message_time)
+            logger.info(f"Waiting {wait_time:.1f}s to avoid flood control")
+            await asyncio.sleep(wait_time)
         
         try:
-            # Создаем новый экземпляр бота для каждого сообщения
-            bot = Bot(token=self.token)
-            await bot.send_message(
-                chat_id=self.chat_id,
-                text=message,
-                parse_mode='HTML'
-            )
-            await bot.close()  # Закрываем соединение
-            self.last_message_time = time.time()
-            logger.info("Telegram message sent successfully")
-            return True
-        except TelegramError as e:
-            if "Flood control exceeded" in str(e):
-                logger.warning(f"Telegram flood control: {e}")
-                # Увеличиваем интервал при flood control
-                self.min_interval = min(self.min_interval * 2, 60.0)
-                return False
-            else:
-                logger.error(f"Failed to send Telegram message: {e}")
-                return False
+            url = f"https://api.telegram.org/bot{self.token}/sendMessage"
+            data = {
+                'chat_id': self.chat_id,
+                'text': message,
+                'parse_mode': 'HTML'
+            }
+            
+            # Используем HTTP клиент с правильным управлением соединениями
+            async with self.http_client.stream('POST', url, json=data) as response:
+                if response.status_code == 200:
+                    self.last_message_time = time.time()
+                    logger.info("Telegram message sent successfully")
+                    return True
+                else:
+                    error_text = await response.aread()
+                    logger.error(f"Telegram API error: {response.status_code} - {error_text}")
+                    return False
+                    
+        except httpx.TimeoutException:
+            logger.error("Telegram request timeout")
+            return False
+        except httpx.PoolTimeout:
+            logger.error("Telegram connection pool timeout - too many concurrent requests")
+            # Увеличиваем интервал при проблемах с пулом
+            self.min_interval = min(self.min_interval * 1.5, 30.0)
+            return False
         except Exception as e:
             logger.error(f"Unexpected error sending Telegram message: {e}")
             return False
@@ -64,6 +80,10 @@ class TelegramLogger:
                 loop.close()
         except Exception as e:
             logger.error(f"Error in sync telegram send: {e}")
+    
+    async def close(self):
+        """Закрытие HTTP клиента"""
+        await self.http_client.aclose()
     
     def log_new_market(self, market_data):
         """Логирование нового рынка"""
