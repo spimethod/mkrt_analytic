@@ -2,23 +2,15 @@ import time
 import threading
 import schedule
 import logging
+import sys
 from datetime import datetime, timedelta
 from database import DatabaseManager
 from ocr_screenshot_analyzer import OCRScreenshotAnalyzer
 from telegram_bot import TelegramLogger
 from config import ANALYSIS_TIME_MINUTES, MAX_RETRIES, RETRY_DELAY_SECONDS, LOGGING_INTERVAL_MINUTES, PING_INTERVAL_MINUTES
 
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
-
-# Отключаем логирование в файл для Railway
-# logging.FileHandler('bot.log') - убираем для Railway
+# Импортируем настройку логирования
+import logging_config
 
 logger = logging.getLogger(__name__)
 

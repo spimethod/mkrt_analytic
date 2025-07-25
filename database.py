@@ -4,6 +4,9 @@ from datetime import datetime
 from config import POLYMARKET_DB_CONFIG, ANALYTIC_DB_CONFIG
 import logging
 
+# Импортируем настройку логирования
+import logging_config
+
 logger = logging.getLogger(__name__)
 
 class DatabaseManager:

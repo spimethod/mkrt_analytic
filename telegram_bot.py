@@ -5,6 +5,9 @@ import logging
 from config import TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, ANALYSIS_TIME_MINUTES, LOGGING_INTERVAL_MINUTES
 from datetime import datetime
 
+# Импортируем настройку логирования
+import logging_config
+
 logger = logging.getLogger(__name__)
 
 class TelegramLogger:

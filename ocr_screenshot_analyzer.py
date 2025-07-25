@@ -11,6 +11,9 @@ from datetime import datetime
 from playwright.async_api import async_playwright
 from config import POLYMARKET_BASE_URL
 
+# Импортируем настройку логирования
+import logging_config
+
 logger = logging.getLogger(__name__)
 
 class OCRScreenshotAnalyzer:
