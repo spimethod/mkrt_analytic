@@ -9,22 +9,24 @@ logger = logging.getLogger(__name__)
 
 class TelegramLogger:
     def __init__(self):
-        self.bot = None
-        if TELEGRAM_TOKEN:
-            self.bot = Bot(token=TELEGRAM_TOKEN)
+        self.token = TELEGRAM_TOKEN
+        self.chat_id = TELEGRAM_CHAT_ID
     
     async def send_message(self, message):
         """Отправка сообщения в Telegram"""
-        if not self.bot or not TELEGRAM_CHAT_ID:
+        if not self.token or not self.chat_id:
             logger.warning("Telegram bot not configured, skipping message")
             return False
         
         try:
-            await self.bot.send_message(
-                chat_id=TELEGRAM_CHAT_ID,
+            # Создаем новый экземпляр бота для каждого сообщения
+            bot = Bot(token=self.token)
+            await bot.send_message(
+                chat_id=self.chat_id,
                 text=message,
                 parse_mode='HTML'
             )
+            await bot.close()  # Закрываем соединение
             logger.info("Telegram message sent successfully")
             return True
         except TelegramError as e:
@@ -37,7 +39,13 @@ class TelegramLogger:
     def send_message_sync(self, message):
         """Синхронная отправка сообщения в Telegram"""
         try:
-            asyncio.run(self.send_message(message))
+            # Создаем новый event loop для каждого сообщения
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(self.send_message(message))
+            finally:
+                loop.close()
         except Exception as e:
             logger.error(f"Error in sync telegram send: {e}")
     
