@@ -69,9 +69,12 @@ COPY requirements.txt .
 # Установка Python зависимостей
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Установка Playwright браузеров
+# Установка Playwright браузеров (важно!)
 RUN playwright install chromium
 RUN playwright install-deps chromium
+
+# Проверка установки Playwright
+RUN playwright --version
 
 # Копирование кода приложения
 COPY . .
@@ -79,6 +82,9 @@ COPY . .
 # Создание пользователя для безопасности
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
+
+# Проверка что браузеры доступны пользователю appuser
+RUN playwright install chromium
 
 # Команда запуска
 CMD ["python", "main.py"] 

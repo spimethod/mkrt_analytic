@@ -1,4 +1,5 @@
 import asyncio
+import time
 from telegram import Bot
 from telegram.error import TelegramError
 import logging
@@ -11,12 +12,20 @@ class TelegramLogger:
     def __init__(self):
         self.token = TELEGRAM_TOKEN
         self.chat_id = TELEGRAM_CHAT_ID
+        self.last_message_time = 0
+        self.min_interval = 1.0  # Минимальный интервал между сообщениями (секунды)
     
     async def send_message(self, message):
-        """Отправка сообщения в Telegram"""
+        """Отправка сообщения в Telegram с защитой от flood control"""
         if not self.token or not self.chat_id:
             logger.warning("Telegram bot not configured, skipping message")
             return False
+        
+        # Проверяем интервал между сообщениями
+        current_time = time.time()
+        if current_time - self.last_message_time < self.min_interval:
+            logger.info(f"Waiting {self.min_interval - (current_time - self.last_message_time):.1f}s to avoid flood control")
+            await asyncio.sleep(self.min_interval - (current_time - self.last_message_time))
         
         try:
             # Создаем новый экземпляр бота для каждого сообщения
@@ -27,11 +36,18 @@ class TelegramLogger:
                 parse_mode='HTML'
             )
             await bot.close()  # Закрываем соединение
+            self.last_message_time = time.time()
             logger.info("Telegram message sent successfully")
             return True
         except TelegramError as e:
-            logger.error(f"Failed to send Telegram message: {e}")
-            return False
+            if "Flood control exceeded" in str(e):
+                logger.warning(f"Telegram flood control: {e}")
+                # Увеличиваем интервал при flood control
+                self.min_interval = min(self.min_interval * 2, 60.0)
+                return False
+            else:
+                logger.error(f"Failed to send Telegram message: {e}")
+                return False
         except Exception as e:
             logger.error(f"Unexpected error sending Telegram message: {e}")
             return False
