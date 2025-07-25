@@ -1,0 +1,24 @@
+[Unit]
+Description=Market Analysis Bot
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=your_username
+WorkingDirectory=/path/to/mkrt_analytic
+Environment=PATH=/usr/bin:/usr/local/bin
+ExecStart=/usr/bin/python3 /path/to/mkrt_analytic/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Переменные окружения (можно также использовать файл .env)
+Environment=POLYMARKET_DB_HOST=localhost
+Environment=POLYMARKET_DB_PORT=5432
+Environment=ANALYTIC_DB_HOST=localhost
+Environment=ANALYTIC_DB_PORT=5432
+
+[Install]
+WantedBy=multi-user.target 

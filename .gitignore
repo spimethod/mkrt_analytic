@@ -1,0 +1,99 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.json
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+
+# Test files
+test_*.py
+*_test.py
+
+# Screenshots and analysis files
+screenshot_*.png
+ocr_analysis_*.json
+ocr_extracted_text_*.json
+ocr_parsed_data_*.json
+screenshot_ai_analysis_*.json
+comprehensive_analysis_*.json
+final_api_analysis_*.json
+final_api_market_data_*.json
+web_scraper_analysis_*.json
+web_scraper_market_data_*.json
+active_markets_*.json
+market_analysis_*.json
+market_data_*.json
+polymarket_analysis_*.json
+polymarket_market_data_*.json
+selenium_analysis_*.json
+selenium_market_data_*.json
+simple_market_analysis_*.json
+working_market_analysis_*.json
+correct_market_analysis_*.json
+api_market_analysis_*.json
+improved_analysis_*.json
+debug_*.html
+debug_*.json
+
+# Reports
+*_REPORT.md
+*_SUCCESS_REPORT.md
+*_SUMMARY.md
+*_WORKING_REPORT.md
+*_RECOMMENDATION.md
+*_TEST.md
+FIXES.md
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db 

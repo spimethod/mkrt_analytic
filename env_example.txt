@@ -1,0 +1,19 @@
+# Database configurations
+POLYMARKET_DB_HOST=localhost
+POLYMARKET_DB_PORT=5432
+POLYMARKET_DB_NAME=markets
+POLYMARKET_DB_USER=postgres
+POLYMARKET_DB_PASSWORD=your_password
+
+ANALYTIC_DB_HOST=localhost
+ANALYTIC_DB_PORT=5432
+ANALYTIC_DB_NAME=mkrt_analytic
+ANALYTIC_DB_USER=postgres
+ANALYTIC_DB_PASSWORD=your_password
+
+# Telegram configuration
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_CHAT_ID=your_telegram_chat_id
+
+# Analysis time in minutes
+MKRT_ANALYTIC_TIME_MIN=60 
