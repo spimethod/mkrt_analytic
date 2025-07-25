@@ -30,6 +30,9 @@ class MarketAnalysisBot:
         self.telegram_logger.log_bot_start()
         self.running = True
         
+        # Закрываем рынки, превысившие время анализа при запуске
+        self.close_expired_markets()
+        
         # Планируем задачи
         schedule.every(30).seconds.do(self.check_new_markets)
         schedule.every(1).minutes.do(self.update_active_markets)
@@ -85,10 +88,21 @@ class MarketAnalysisBot:
                 markets = self.db_manager.get_new_markets()
                 logger.warning("Bot start time not set, using all markets")
             
-            # Получаем список уже работающих рынков
+            # Получаем список уже работающих рынков из mkrt_analytic
             markets_in_progress = self.db_manager.get_markets_in_progress()
             in_progress_slugs = {market['slug'] for market in markets_in_progress}
             logger.info(f"Found {len(in_progress_slugs)} markets already in progress")
+            
+            # Получаем рынки, которые превысили время анализа
+            exceeded_markets = self.db_manager.get_markets_exceeded_analysis_time(ANALYSIS_TIME_MINUTES)
+            exceeded_slugs = {market['slug'] for market in exceeded_markets}
+            
+            if exceeded_slugs:
+                logger.info(f"Found {len(exceeded_slugs)} markets that exceeded analysis time: {exceeded_slugs}")
+                # Закрываем рынки, превысившие время анализа
+                for market in exceeded_markets:
+                    self.db_manager.update_market_analysis(market['id'], {'status': 'закрыт (время истекло)'})
+                    logger.info(f"Closed market {market['slug']} - analysis time exceeded")
             
             for market in markets:
                 # Проверяем, не анализируем ли уже этот рынок (по ID и slug)
@@ -98,6 +112,11 @@ class MarketAnalysisBot:
                 # Проверяем, не в работе ли уже этот рынок
                 if market_slug in in_progress_slugs:
                     logger.info(f"Market {market_slug} is already in progress in database, skipping")
+                    continue
+                
+                # Проверяем, не превысил ли рынок время анализа
+                if market_slug in exceeded_slugs:
+                    logger.info(f"Market {market_slug} exceeded analysis time, skipping")
                     continue
                 
                 # Проверяем по ID
@@ -270,6 +289,22 @@ class MarketAnalysisBot:
             error_msg = f"Error logging market summaries: {e}"
             logger.error(error_msg)
             self.telegram_logger.log_error(error_msg)
+
+    def close_expired_markets(self):
+        """Закрытие рынков, превысивших время анализа при запуске бота"""
+        try:
+            exceeded_markets = self.db_manager.get_markets_exceeded_analysis_time(ANALYSIS_TIME_MINUTES)
+            
+            if exceeded_markets:
+                logger.info(f"Closing {len(exceeded_markets)} markets that exceeded analysis time on startup")
+                for market in exceeded_markets:
+                    self.db_manager.update_market_analysis(market['id'], {'status': 'закрыт (время истекло)'})
+                    logger.info(f"Closed expired market: {market['slug']}")
+            else:
+                logger.info("No expired markets found on startup")
+                
+        except Exception as e:
+            logger.error(f"Error closing expired markets: {e}")
 
 def main():
     """Главная функция"""

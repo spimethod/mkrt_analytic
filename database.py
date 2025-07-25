@@ -1,6 +1,6 @@
 import psycopg2
 import psycopg2.extras
-from datetime import datetime
+from datetime import datetime, timedelta
 from config import POLYMARKET_DB_CONFIG, ANALYTIC_DB_CONFIG
 import logging
 
@@ -215,6 +215,32 @@ class DatabaseManager:
             logger.error(f"Error getting active markets: {e}")
             return []
     
+    def get_markets_exceeded_analysis_time(self, analysis_time_minutes):
+        """Получение рынков из mkrt_analytic, которые превысили время анализа"""
+        try:
+            if not self.conn:
+                if not self.connect():
+                    return []
+            
+            # Вычисляем время, до которого рынки должны быть активны
+            cutoff_time = datetime.now() - timedelta(minutes=analysis_time_minutes)
+            
+            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor.execute("""
+                SELECT id, slug, last_updated, status
+                FROM mkrt_analytic
+                WHERE last_updated < %s AND status = 'в работе'
+            """, (cutoff_time,))
+            
+            markets = cursor.fetchall()
+            cursor.close()
+            
+            logger.info(f"Found {len(markets)} markets that exceeded analysis time ({analysis_time_minutes} minutes)")
+            return markets
+        except Exception as e:
+            logger.error(f"Error getting markets exceeded analysis time: {e}")
+            return []
+
     def get_markets_in_progress(self):
         """Получение рынков, которые уже в работе (статус 'в работе')"""
         try:
@@ -224,7 +250,7 @@ class DatabaseManager:
             
             cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("""
-                SELECT id, slug, status
+                SELECT id, slug, status, last_updated
                 FROM mkrt_analytic
                 WHERE status = 'в работе'
             """)
