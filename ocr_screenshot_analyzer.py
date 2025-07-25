@@ -370,7 +370,7 @@ class OCRScreenshotAnalyzer:
     async def detect_market_category(self):
         """Определение категории рынка (Sports/Crypto/Other) через скрабинг"""
         try:
-            # 1. Ищем навигационные табы (как показано на скрине)
+            # 1. Ищем только основные навигационные элементы (исключаем технические)
             tab_selectors = [
                 'nav a',
                 '[role="tab"]',
@@ -386,14 +386,17 @@ class OCRScreenshotAnalyzer:
                     elements = await self.page.query_selector_all(selector)
                     for element in elements:
                         text = await element.text_content()
-                        if text:
-                            navigation_text += text.lower() + " "
-                            logger.info(f"Найден навигационный элемент: {text}")
+                        if text and len(text.strip()) > 1:  # Исключаем одиночные символы
+                            # Фильтруем технические элементы
+                            filtered_text = text.strip().lower()
+                            if not any(tech in filtered_text for tech in ['1h', '6h', '1d', '1w', '1m', 'all', 'comments', 'holders', 'activity', 'post', 'trade', 'max', 'gear', 'chevron', 'dots', 'arrows', 'circle', 'link']):
+                                navigation_text += filtered_text + " "
+                                logger.info(f"Найден навигационный элемент: {text}")
                 except Exception as e:
                     logger.debug(f"Ошибка поиска по селектору {selector}: {e}")
                     continue
             
-            # 2. Ищем активные/выделенные табы
+            # 2. Ищем активные/выделенные табы (только основные категории)
             active_selectors = [
                 '[class*="active"]',
                 '[class*="selected"]',
@@ -407,9 +410,12 @@ class OCRScreenshotAnalyzer:
                     elements = await self.page.query_selector_all(selector)
                     for element in elements:
                         text = await element.text_content()
-                        if text:
-                            active_text += text.lower() + " "
-                            logger.info(f"Найден активный элемент: {text}")
+                        if text and len(text.strip()) > 1:
+                            # Фильтруем технические элементы
+                            filtered_text = text.strip().lower()
+                            if not any(tech in filtered_text for tech in ['1h', '6h', '1d', '1w', '1m', 'all', 'comments', 'holders', 'activity', 'post', 'trade', 'max', 'gear', 'chevron', 'dots', 'arrows', 'circle', 'link', 'show less', 'show more', 'united states', 'how it works', 'log in', 'sign up']):
+                                active_text += filtered_text + " "
+                                logger.info(f"Найден активный элемент: {text}")
                 except Exception as e:
                     logger.debug(f"Ошибка поиска активных элементов: {e}")
                     continue
@@ -433,8 +439,7 @@ class OCRScreenshotAnalyzer:
             sports_indicators = [
                 'sports', 'mlb', 'nba', 'nfl', 'wnba', 'golf', 'epl', 'cfb',
                 'baseball', 'basketball', 'football', 'soccer', 'tennis',
-                'game', 'match', 'team', 'player', 'score', 'live',
-                'starting soon', 'trending', 'new', 'politics', 'middle east'
+                'game', 'match', 'team', 'player', 'score'
             ]
             
             crypto_indicators = [
@@ -459,11 +464,11 @@ class OCRScreenshotAnalyzer:
             
             logger.info(f"Sports score: {sports_score}, Crypto score: {crypto_score}")
             
-            # Определяем категорию на основе количества совпадений
-            if sports_score > 0:
+            # Определяем категорию на основе количества совпадений (более строгие критерии)
+            if sports_score >= 3:  # Требуем минимум 3 совпадения для Sports
                 logger.info(f"⚠️ Рынок определен как Sports (score: {sports_score})")
                 return 'sports'
-            elif crypto_score > 0:
+            elif crypto_score >= 2:  # Требуем минимум 2 совпадения для Crypto
                 logger.info(f"⚠️ Рынок определен как Crypto (score: {crypto_score})")
                 return 'crypto'
             else:
