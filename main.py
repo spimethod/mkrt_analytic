@@ -319,17 +319,22 @@ class MarketAnalysisBot:
             self.telegram_logger.log_error(error_msg)
 
     def close_expired_markets(self):
-        """Закрытие рынков, превысивших время анализа при запуске бота"""
+        """Закрытие рынков, превысивших время анализа при запуске"""
         try:
+            logger.info("⏰ Проверяем истекшие рынки при запуске...")
+            
+            # Получаем рынки, которые превысили время анализа
             exceeded_markets = self.db_manager.get_markets_exceeded_analysis_time(ANALYSIS_TIME_MINUTES)
             
             if exceeded_markets:
-                logger.info(f"Closing {len(exceeded_markets)} markets that exceeded analysis time on startup")
+                logger.info(f"⏰ Найдено {len(exceeded_markets)} рынков, превысивших время анализа")
                 for market in exceeded_markets:
-                    self.db_manager.update_market_analysis(market['id'], {'status': 'закрыт (время истекло)'})
-                    logger.info(f"Closed expired market: {market['slug']}")
+                    market_id = market['id']
+                    slug = market['slug']
+                    logger.info(f"⏰ Закрываем истекший рынок: {slug}")
+                    self.db_manager.update_market_analysis(market_id, {'status': 'закрыт (время истекло)'})
             else:
-                logger.info("No expired markets found on startup")
+                logger.info("ℹ️ Нет истекших рынков при запуске")
                 
         except Exception as e:
             logger.error(f"Error closing expired markets: {e}")
@@ -355,12 +360,17 @@ class MarketAnalysisBot:
                     # Правильно обращаемся к словарю
                     market_id = market['id']
                     slug = market['slug']
-                    last_updated = market['last_updated']
+                    created_at_analytic = market['created_at_analytic']  # Используем время создания
                     
                     logger.info(f"🔍 Проверяем рынок: {slug} (ID: {market_id})")
+                    logger.info(f"📅 Время создания: {created_at_analytic}")
                     
-                    # Проверяем, не истекло ли время анализа
-                    analysis_end_time = last_updated + timedelta(minutes=ANALYSIS_TIME_MINUTES)
+                    # Проверяем, не истекло ли время анализа (от времени создания)
+                    analysis_end_time = created_at_analytic + timedelta(minutes=ANALYSIS_TIME_MINUTES)
+                    remaining_time = (analysis_end_time - current_time).total_seconds() / 60
+                    
+                    logger.info(f"⏰ Время анализа истекает: {analysis_end_time}")
+                    logger.info(f"⏰ Осталось времени: {remaining_time:.1f} минут")
                     
                     if current_time >= analysis_end_time:
                         logger.info(f"⏰ Время анализа истекло для рынка {slug} - закрываем")
@@ -398,12 +408,11 @@ class MarketAnalysisBot:
                             continue
                         
                         # Рынок подходит для анализа - восстанавливаем мониторинг
-                        remaining_time = (analysis_end_time - current_time).total_seconds() / 60
                         logger.info(f"✅ Восстанавливаем анализ для рынка {slug}, осталось {remaining_time:.1f} минут")
                         
                         # Добавляем в активные рынки
                         self.active_markets[market_id] = {
-                            'start_time': last_updated,  # Используем время из БД
+                            'start_time': created_at_analytic,  # Используем время создания
                             'last_log': current_time,
                             'slug': slug,
                             'question': market.get('question', '')

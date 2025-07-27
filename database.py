@@ -255,14 +255,14 @@ class DatabaseManager:
                 if not self.connect():
                     return []
             
-            # Вычисляем время, до которого рынки должны быть активны
+            # Вычисляем время, до которого рынки должны быть активны (от времени создания)
             cutoff_time = datetime.now() - timedelta(minutes=analysis_time_minutes)
             
             cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("""
-                SELECT id, slug, last_updated, status
+                SELECT id, slug, created_at_analytic, status
                 FROM mkrt_analytic
-                WHERE last_updated < %s AND status = 'в работе'
+                WHERE created_at_analytic < %s AND status = 'в работе'
             """, (cutoff_time,))
             
             markets = cursor.fetchall()
@@ -283,7 +283,7 @@ class DatabaseManager:
             
             cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("""
-                SELECT id, slug, status, last_updated
+                SELECT id, slug, status, last_updated, created_at_analytic, question
                 FROM mkrt_analytic
                 WHERE status = 'в работе'
             """)
