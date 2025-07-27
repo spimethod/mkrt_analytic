@@ -116,17 +116,19 @@ class OCRScreenshotAnalyzer:
                     # Точные селекторы для торгового виджета (на основе скриншота)
                     'button:has-text("Yes")',
                     'button:has-text("No")',
-                    'div:has-text("Yes")',
-                    'div:has-text("No")',
-                    'span:has-text("Yes")',
-                    'span:has-text("No")',
-                    # Селекторы для торгового виджета
-                    '[class*="trading-widget"]',
-                    '[class*="buy-sell"]',
-                    '[class*="market-actions"]',
-                    '[class*="trading-panel"]',
-                    '[class*="price-button"]',
-                    '[class*="outcome-button"]',
+                    # Селекторы для торгового виджета (исключаем комментарии)
+                    '[class*="trading-widget"] button:has-text("Yes")',
+                    '[class*="trading-widget"] button:has-text("No")',
+                    '[class*="buy-sell"] button:has-text("Yes")',
+                    '[class*="buy-sell"] button:has-text("No")',
+                    '[class*="market-actions"] button:has-text("Yes")',
+                    '[class*="market-actions"] button:has-text("No")',
+                    '[class*="trading-panel"] button:has-text("Yes")',
+                    '[class*="trading-panel"] button:has-text("No")',
+                    '[class*="price-button"] button:has-text("Yes")',
+                    '[class*="price-button"] button:has-text("No")',
+                    '[class*="outcome-button"] button:has-text("Yes")',
+                    '[class*="outcome-button"] button:has-text("No")',
                     # Селекторы по ролям
                     '[role="button"]:has-text("Yes")',
                     '[role="button"]:has-text("No")',
@@ -746,10 +748,13 @@ class OCRScreenshotAnalyzer:
                 }
             
             # Извлекаем контракт отдельно
+            logger.info("🔍 Начинаем извлечение контракта...")
             contract_address = await self.extract_contract_address()
             if contract_address:
                 extracted_data['extracted_contract'] = contract_address
                 logger.info(f"✅ Контракт извлечен: {contract_address}")
+            else:
+                logger.warning("❌ Контракт не был извлечен")
             
             # Парсим данные с помощью RegEx
             parsed_data = self.parse_data_with_regex(extracted_data)
