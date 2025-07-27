@@ -113,6 +113,21 @@ class OCRScreenshotAnalyzer:
             try:
                 # Расширяем селекторы для поиска цен в торговом виджете Polymarket
                 price_selectors = [
+                    # Специфичные селекторы для Polymarket
+                    '[data-testid*="trade"]',
+                    '[data-testid*="buy"]',
+                    '[data-testid*="sell"]',
+                    '[data-testid*="yes"]',
+                    '[data-testid*="no"]',
+                    '[data-testid*="price"]',
+                    '[data-testid*="button"]',
+                    # CSS классы для торгового виджета
+                    '[class*="trade-widget"]',
+                    '[class*="buy-sell"]',
+                    '[class*="market-actions"]',
+                    '[class*="trading"]',
+                    '[class*="order"]',
+                    # Более общие селекторы
                     '[class*="price"]',
                     '[class*="odds"]', 
                     '[class*="probability"]',
@@ -131,16 +146,24 @@ class OCRScreenshotAnalyzer:
                 for selector in price_selectors:
                     try:
                         price_elements = await self.page.query_selector_all(selector)
-                        for element in price_elements:
+                        logger.info(f"🔍 Селектор {selector}: найдено {len(price_elements)} элементов")
+                        
+                        for i, element in enumerate(price_elements):
                             try:
                                 element_screenshot = await element.screenshot()
                                 element_text = await self.extract_text_from_image(element_screenshot)
                                 if element_text:
                                     price_text += " " + element_text
-                                    logger.info(f"📊 Найдены цены в {selector}: {element_text[:100]}...")
+                                    logger.info(f"📊 Найдены цены в {selector}[{i}]: {element_text[:100]}...")
+                                    
+                                    # Проверяем, содержит ли элемент цены Yes/No
+                                    if 'yes' in element_text.lower() or 'no' in element_text.lower():
+                                        logger.info(f"🎯 НАЙДЕНЫ ЦЕНЫ YES/NO в {selector}[{i}]: {element_text}")
                             except Exception as e:
+                                logger.debug(f"❌ Ошибка обработки элемента {selector}[{i}]: {e}")
                                 continue
                     except Exception as e:
+                        logger.debug(f"❌ Ошибка селектора {selector}: {e}")
                         continue
                 
                 if price_text.strip():
