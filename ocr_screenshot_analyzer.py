@@ -458,6 +458,12 @@ class OCRScreenshotAnalyzer:
             # Объединяем весь текст для поиска
             all_text = f"{full_text} {title_text} {price_text}".lower()
             
+            # Логируем извлеченный текст для отладки
+            logger.info(f"🔍 Анализируем текст для булевых индикаторов:")
+            logger.info(f"📄 Полный текст: {full_text[:200]}...")
+            logger.info(f"📄 Текст цен: {price_text[:200]}...")
+            logger.info(f"📄 Объединенный текст: {all_text[:300]}...")
+            
             # Проверяем наличие булевых индикаторов (Yes/No цены)
             boolean_indicators = [
                 r'yes\s*\d+[¢%]',  # Yes 21¢
@@ -469,11 +475,18 @@ class OCRScreenshotAnalyzer:
             ]
             
             is_boolean_market = False
+            found_pattern = None
             for pattern in boolean_indicators:
-                if re.search(pattern, all_text, re.IGNORECASE):
+                match = re.search(pattern, all_text, re.IGNORECASE)
+                if match:
                     is_boolean_market = True
-                    logger.info(f"✅ Найден булевый индикатор: {pattern}")
+                    found_pattern = pattern
+                    logger.info(f"✅ Найден булевый индикатор: {pattern} -> '{match.group()}'")
                     break
+            
+            if not is_boolean_market:
+                logger.warning(f"❌ Булевые индикаторы НЕ найдены в тексте")
+                logger.warning(f"🔍 Искали паттерны: {boolean_indicators}")
             
             # Проверяем наличие не-булевых индикаторов
             non_boolean_indicators = [
