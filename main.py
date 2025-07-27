@@ -28,6 +28,9 @@ class MarketAnalysisBot:
         try:
             logger.info("🚀 Запуск Market Analysis Bot...")
             
+            # Устанавливаем флаг работы бота
+            self.running = True
+            
             # Устанавливаем время запуска бота
             self.bot_start_time = datetime.now()
             logger.info(f"📅 Время запуска бота: {self.bot_start_time}")
@@ -80,7 +83,6 @@ class MarketAnalysisBot:
             
             # Логируем запуск бота
             self.telegram_logger.log_bot_start()
-            self.running = True
             
             # Планируем задачи
             schedule.every(30).seconds.do(self.check_new_markets)
