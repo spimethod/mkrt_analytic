@@ -139,7 +139,29 @@ class OCRScreenshotAnalyzer:
                     '[class*="option"]', # Опции Yes/No
                     'button',            # Все кнопки
                     '[class*="widget"]', # Виджеты
-                    '[class*="panel"]'   # Панели
+                    '[class*="panel"]',  # Панели
+                    # Специфичные селекторы для Polymarket (на основе реальной структуры)
+                    '[class*="market-trading"]',
+                    '[class*="trading-panel"]',
+                    '[class*="market-actions"]',
+                    '[class*="buy-sell-panel"]',
+                    '[class*="price-display"]',
+                    '[class*="odds-display"]',
+                    '[class*="probability-display"]',
+                    # Селекторы по ролям и атрибутам
+                    '[role="button"]',
+                    '[role="tab"]',
+                    '[aria-label*="buy"]',
+                    '[aria-label*="sell"]',
+                    '[aria-label*="yes"]',
+                    '[aria-label*="no"]',
+                    # Селекторы по тексту
+                    'button:has-text("Yes")',
+                    'button:has-text("No")',
+                    'div:has-text("Yes")',
+                    'div:has-text("No")',
+                    'span:has-text("Yes")',
+                    'span:has-text("No")'
                 ]
                 
                 price_text = ""
@@ -196,6 +218,8 @@ class OCRScreenshotAnalyzer:
     async def extract_contract_address(self):
         """Извлечение адреса контракта через клик на Show more"""
         try:
+            logger.info("🔍 Начинаем извлечение контракта через Show more...")
+            
             # 1. Ищем кнопку "Show more"
             show_more_selectors = [
                 'button:has-text("Show more")',
