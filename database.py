@@ -122,8 +122,7 @@ class DatabaseManager:
                 market_data.get('market_exists', True),  # По умолчанию True
                 market_data.get('is_boolean', True),     # По умолчанию True
                 market_data.get('yes_percentage', 0),
-                market_data.get('yes_order_book_total', 0),
-                market_data.get('no_order_book_total', 0),
+                market_data.get('volume', 'New'),        # Volume или "New"
                 market_data.get('contract_address', ''),
                 market_data.get('status', 'в работе'),
                 datetime.now()
@@ -134,9 +133,8 @@ class DatabaseManager:
             cursor.execute("""
                 INSERT INTO mkrt_analytic 
                 (polymarket_id, question, created_at, active, enable_order_book, slug, 
-                 market_exists, is_boolean, yes_percentage, yes_order_book_total, 
-                 no_order_book_total, contract_address, status, last_updated)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 market_exists, is_boolean, yes_percentage, volume, contract_address, status, last_updated)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (polymarket_id) DO UPDATE SET
                 last_updated = EXCLUDED.last_updated
                 RETURNING id
@@ -179,8 +177,7 @@ class DatabaseManager:
                 analysis_data.get('market_exists', True),  # По умолчанию True
                 analysis_data.get('is_boolean', True),     # По умолчанию True
                 analysis_data.get('yes_percentage', 0),
-                analysis_data.get('yes_order_book_total', 0),
-                analysis_data.get('no_order_book_total', 0),
+                analysis_data.get('volume', 'New'),        # Volume или "New"
                 analysis_data.get('contract_address', ''),
                 analysis_data.get('status', 'в работе'),
                 datetime.now(),
@@ -192,8 +189,7 @@ class DatabaseManager:
             cursor.execute("""
                 UPDATE mkrt_analytic 
                 SET market_exists = %s, is_boolean = %s, yes_percentage = %s,
-                    yes_order_book_total = %s, no_order_book_total = %s,
-                    contract_address = %s, status = %s, last_updated = %s
+                    volume = %s, contract_address = %s, status = %s, last_updated = %s
                 WHERE id = %s
             """, update_data)
             

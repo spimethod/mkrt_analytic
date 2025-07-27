@@ -532,23 +532,40 @@ class OCRScreenshotAnalyzer:
             
             parsed_data['yes_percentage'] = yes_percentage
             
-            # Извлекаем объем
+            # Извлекаем Volume или New статус
             volume_patterns = [
-                r'\$([\d,]+(?:\.\d{2})?)',  # $1,234.56
-                r'volume[:\s]*\$?([\d,]+)',  # volume: $1,234
-                r'total[:\s]*\$?([\d,]+)'    # total: $1,234
+                r'\$([\d,]+(?:\.\d{2})?)\s*vol',  # $18,606 Vol
+                r'volume[:\s]*\$?([\d,]+)',        # volume: $1,234
+                r'total[:\s]*\$?([\d,]+)',         # total: $1,234
+                r'\$([\d,]+(?:\.\d{2})?)\s*volume' # $18,606 Volume
             ]
             
-            volume = 'New'
+            volume = 'New'  # По умолчанию "New"
             for pattern in volume_patterns:
-                match = re.search(pattern, all_text)
+                match = re.search(pattern, all_text, re.IGNORECASE)
                 if match:
                     try:
                         volume_value = match.group(1).replace(',', '')
                         volume = f"${float(volume_value):,.2f}"
+                        logger.info(f"📊 Найден Volume: {volume}")
                         break
                     except ValueError:
                         continue
+            
+            # Если не найден Volume, проверяем наличие "NEW" тега
+            if volume == 'New':
+                new_patterns = [
+                    r'◆\s*new',
+                    r'new\s*◆',
+                    r'◆\s*new\s*◆',
+                    r'new\s*market',
+                    r'◆\s*new\s*market'
+                ]
+                for pattern in new_patterns:
+                    if re.search(pattern, all_text, re.IGNORECASE):
+                        volume = 'New'
+                        logger.info("🆕 Найден NEW статус")
+                        break
             
             parsed_data['volume'] = volume
             
@@ -664,20 +681,20 @@ class OCRScreenshotAnalyzer:
                     'market_exists': True,
                     'is_boolean': False,
                     'yes_percentage': 0,
+                    'volume': 'New',
                     'contract_address': '',
                     'title': parsed_data.get('title', ''),
-                    'description': '',
-                    'volume': parsed_data.get('volume', '')
+                    'description': ''
                 }
 
             return {
                 'market_exists': parsed_data.get('market_exists', True),  # По умолчанию True
                 'is_boolean': parsed_data.get('is_boolean', True),  # По умолчанию True
                 'yes_percentage': parsed_data.get('yes_percentage', 0),
+                'volume': parsed_data.get('volume', 'New'),  # Volume или "New"
                 'contract_address': parsed_data.get('contract_address', ''),
                 'title': parsed_data.get('title', ''),
-                'description': '', # Убираем поле "Описание:"
-                'volume': parsed_data.get('volume', '')
+                'description': '' # Убираем поле "Описание:"
             }
             
         except Exception as e:
@@ -686,10 +703,10 @@ class OCRScreenshotAnalyzer:
                 'market_exists': True,  # По умолчанию True
                 'is_boolean': True,  # По умолчанию True
                 'yes_percentage': 0,
+                'volume': 'New',  # По умолчанию "New"
                 'contract_address': '',
                 'title': '',
-                'description': '',
-                'volume': ''
+                'description': ''
             }
     
     def get_market_data(self, slug):
