@@ -414,8 +414,7 @@ class OCRScreenshotAnalyzer:
             # Определяем категорию с более точными индикаторами
             sports_indicators = [
                 'sports', 'mlb', 'nba', 'nfl', 'wnba', 'golf', 'epl', 'cfb',
-                'baseball', 'basketball', 'football', 'soccer', 'tennis',
-                'game', 'match', 'team', 'player', 'score'
+                'baseball', 'basketball', 'football', 'soccer', 'tennis'
             ]
             
             crypto_indicators = [
@@ -441,10 +440,11 @@ class OCRScreenshotAnalyzer:
             logger.info(f"Sports score: {sports_score}, Crypto score: {crypto_score}")
             
             # Определяем категорию на основе количества совпадений (более строгие критерии)
-            if sports_score >= 3:  # Требуем минимум 3 совпадения для Sports
+            # Увеличиваем пороги для более точного определения
+            if sports_score >= 4:  # Требуем минимум 4 совпадения для Sports
                 logger.info(f"⚠️ Рынок определен как Sports (score: {sports_score})")
                 return 'sports'
-            elif crypto_score >= 2:  # Требуем минимум 2 совпадения для Crypto
+            elif crypto_score >= 3:  # Требуем минимум 3 совпадения для Crypto
                 logger.info(f"⚠️ Рынок определен как Crypto (score: {crypto_score})")
                 return 'crypto'
             else:
@@ -468,6 +468,23 @@ class OCRScreenshotAnalyzer:
             # Объединяем весь текст для поиска
             all_text = f"{full_text} {title_text} {price_text}".lower()
             
+            # Проверяем наличие булевых индикаторов (Yes/No цены)
+            boolean_indicators = [
+                r'yes\s*\d+[¢%]',  # Yes 21¢
+                r'no\s*\d+[¢%]',   # No 81¢
+                r'yes\s*\$\d+',    # Yes $0.21
+                r'no\s*\$\d+',     # No $0.81
+                r'yes\s*\d+%',     # Yes 21%
+                r'no\s*\d+%'       # No 79%
+            ]
+            
+            is_boolean_market = False
+            for pattern in boolean_indicators:
+                if re.search(pattern, all_text, re.IGNORECASE):
+                    is_boolean_market = True
+                    logger.info(f"✅ Найден булевый индикатор: {pattern}")
+                    break
+            
             # Проверяем наличие не-булевых индикаторов
             non_boolean_indicators = [
                 'multiple choice', 'choose', 'select', 'option',
@@ -475,7 +492,6 @@ class OCRScreenshotAnalyzer:
                 'prediction', 'forecast', 'outcome'
             ]
             
-            is_boolean_market = True
             for indicator in non_boolean_indicators:
                 if indicator in all_text:
                     is_boolean_market = False
