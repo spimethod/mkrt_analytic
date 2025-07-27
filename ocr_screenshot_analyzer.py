@@ -203,7 +203,12 @@ class OCRScreenshotAnalyzer:
                 '[class*="show-more"]',
                 '[class*="expand"]',
                 'button[aria-label*="more"]',
-                'a[aria-label*="more"]'
+                'a[aria-label*="more"]',
+                # Более точные селекторы
+                'button:has-text("Show more"):not(:has-text("¥"))',
+                'a:has-text("Show more"):not(:has-text("¥"))',
+                'button:has-text("Show more"):not(:has-text("$"))',
+                'a:has-text("Show more"):not(:has-text("$"))'
             ]
             
             show_more_button = None
@@ -211,9 +216,14 @@ class OCRScreenshotAnalyzer:
                 try:
                     show_more_button = await self.page.query_selector(selector)
                     if show_more_button:
-                        logger.info(f"✔ Найдена кнопка Show more: {selector}")
+                        # Получаем текст кнопки для проверки
+                        button_text = await show_more_button.text_content()
+                        logger.info(f"✔ Найдена кнопка Show more: {selector} (текст: '{button_text}')")
                         break
-                except:
+                    else:
+                        logger.debug(f"❌ Селектор {selector}: кнопка не найдена")
+                except Exception as e:
+                    logger.debug(f"❌ Ошибка селектора {selector}: {e}")
                     continue
             
             if not show_more_button:
@@ -610,7 +620,12 @@ class OCRScreenshotAnalyzer:
                 r'\$([\d,]+(?:\.\d{2})?)\s*vol',  # $18,606 Vol
                 r'volume[:\s]*\$?([\d,]+)',        # volume: $1,234
                 r'total[:\s]*\$?([\d,]+)',         # total: $1,234
-                r'\$([\d,]+(?:\.\d{2})?)\s*volume' # $18,606 Volume
+                r'\$([\d,]+(?:\.\d{2})?)\s*volume', # $18,606 Volume
+                r'\$([\d,]+(?:\.\d{2})?)\s*',      # $7,105 (просто число после $)
+                r'(\d+)\s*vol\.',                   # 1 Vol.
+                r'vol\.\s*(\d+)',                   # Vol. 1
+                r'volume\s*(\d+)',                  # Volume 1
+                r'(\d+)\s*volume'                   # 1 Volume
             ]
             
             volume = 'New'  # По умолчанию "New"
@@ -619,8 +634,12 @@ class OCRScreenshotAnalyzer:
                 if match:
                     try:
                         volume_value = match.group(1).replace(',', '')
-                        volume = f"${float(volume_value):,.2f}"
-                        logger.info(f"📊 Найден Volume: {volume}")
+                        # Если это просто число (без $), добавляем $
+                        if pattern in [r'(\d+)\s*vol\.', r'vol\.\s*(\d+)', r'volume\s*(\d+)', r'(\d+)\s*volume']:
+                            volume = f"${float(volume_value):,.2f}"
+                        else:
+                            volume = f"${float(volume_value):,.2f}"
+                        logger.info(f"📊 Найден Volume: {volume} (паттерн: {pattern})")
                         break
                     except ValueError:
                         continue
