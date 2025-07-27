@@ -25,30 +25,26 @@ class MarketAnalysisBot:
     
     def start(self):
         """Запуск бота"""
-        logger.info("Starting Market Analysis Bot")
-        self.bot_start_time = datetime.now()  # Запоминаем время запуска
-        self.telegram_logger.log_bot_start()
-        self.running = True
-        
-        # Закрываем рынки, превысившие время анализа при запуске
-        self.close_expired_markets()
-        
-        # Планируем задачи
-        schedule.every(30).seconds.do(self.check_new_markets)
-        schedule.every(1).minutes.do(self.update_active_markets)
-        schedule.every(10).minutes.do(self.log_market_summaries)
-        
-        # Запускаем планировщик в отдельном потоке
-        scheduler_thread = threading.Thread(target=self.run_scheduler)
-        scheduler_thread.daemon = True
-        scheduler_thread.start()
-        
         try:
-            while self.running:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("Bot stopped by user")
-            self.stop()
+            logger.info("🚀 Запуск Market Analysis Bot...")
+            
+            # Устанавливаем время запуска бота
+            self.bot_start_time = datetime.now()
+            logger.info(f"📅 Время запуска бота: {self.bot_start_time}")
+            
+            # Закрываем истекшие рынки при запуске
+            self.close_expired_markets()
+            
+            # Восстанавливаем рынки, которые были в работе до перезапуска
+            self.restore_in_progress_markets()
+            
+            # Запускаем планировщик
+            self.run_scheduler()
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка запуска бота: {e}")
+            self.telegram_logger.log_error(f"Ошибка запуска бота: {e}")
+            raise
     
     def stop(self):
         """Остановка бота"""
@@ -73,9 +69,32 @@ class MarketAnalysisBot:
     
     def run_scheduler(self):
         """Запуск планировщика задач"""
-        while self.running:
-            schedule.run_pending()
-            time.sleep(1)
+        try:
+            logger.info("📅 Запуск планировщика задач...")
+            
+            # Логируем запуск бота
+            self.telegram_logger.log_bot_start()
+            self.running = True
+            
+            # Планируем задачи
+            schedule.every(30).seconds.do(self.check_new_markets)
+            schedule.every(1).minutes.do(self.update_active_markets)
+            schedule.every(10).minutes.do(self.log_market_summaries)
+            
+            logger.info("✅ Планировщик запущен")
+            
+            # Запускаем основной цикл
+            while self.running:
+                schedule.run_pending()
+                time.sleep(1)
+                
+        except KeyboardInterrupt:
+            logger.info("⏹️ Бот остановлен пользователем")
+            self.stop()
+        except Exception as e:
+            logger.error(f"❌ Ошибка планировщика: {e}")
+            self.telegram_logger.log_error(f"Ошибка планировщика: {e}")
+            raise
     
     def check_new_markets(self):
         """Проверка новых рынков каждые 30 секунд"""
@@ -314,6 +333,101 @@ class MarketAnalysisBot:
                 
         except Exception as e:
             logger.error(f"Error closing expired markets: {e}")
+
+    def restore_in_progress_markets(self):
+        """Восстановление анализа для рынков, которые были в работе до перезапуска"""
+        try:
+            logger.info("🔄 Проверяем рынки, которые были в работе до перезапуска...")
+            
+            # Получаем все рынки со статусом "в работе"
+            in_progress_markets = self.db_manager.get_markets_in_progress()
+            
+            if not in_progress_markets:
+                logger.info("ℹ️ Нет рынков в работе для восстановления")
+                return
+            
+            logger.info(f"📊 Найдено {len(in_progress_markets)} рынков в работе")
+            
+            current_time = datetime.now()
+            
+            for market in in_progress_markets:
+                try:
+                    market_id = market['id']
+                    slug = market['slug']
+                    last_updated = market['last_updated']
+                    
+                    # Проверяем, не истекло ли время анализа
+                    analysis_end_time = last_updated + timedelta(minutes=ANALYSIS_TIME_MINUTES)
+                    
+                    if current_time >= analysis_end_time:
+                        logger.info(f"⏰ Время анализа истекло для рынка {slug} - закрываем")
+                        self.db_manager.update_market_analysis(market_id, {'status': 'закрыт (время истекло)'})
+                        continue
+                    
+                    # Проверяем, не анализируем ли уже этот рынок
+                    if market_id in self.active_markets:
+                        logger.info(f"ℹ️ Рынок {slug} уже в активном анализе, пропускаем")
+                        continue
+                    
+                    # Проверяем, не закрыт ли уже этот рынок
+                    if slug in {market['slug'] for market in self.db_manager.get_closed_markets_slugs()}:
+                        logger.info(f"ℹ️ Рынок {slug} уже закрыт, пропускаем")
+                        continue
+                    
+                    # Проверяем категорию рынка (Sports/Crypto)
+                    logger.info(f"🔍 Проверяем категорию для восстановленного рынка: {slug}")
+                    
+                    # Анализируем рынок для определения категории
+                    analysis_data = self.market_analyzer.get_market_data(slug)
+                    
+                    if analysis_data:
+                        # Проверяем, является ли рынок булевым
+                        if not analysis_data.get('is_boolean', True):
+                            reason = analysis_data.get('reason', 'non_boolean')
+                            if reason.startswith('category_'):
+                                category = reason.replace('category_', '')
+                                logger.info(f"⚠️ Восстановленный рынок {slug} относится к категории {category.upper()} - закрываем")
+                                self.db_manager.update_market_analysis(market_id, {'status': f'закрыт ({category})'})
+                            else:
+                                logger.info(f"⚠️ Восстановленный рынок {slug} не булевый - закрываем")
+                                self.db_manager.update_market_analysis(market_id, {'status': 'закрыт (не булевый)'})
+                            continue
+                        
+                        # Рынок подходит для анализа - восстанавливаем мониторинг
+                        remaining_time = (analysis_end_time - current_time).total_seconds() / 60
+                        logger.info(f"✅ Восстанавливаем анализ для рынка {slug}, осталось {remaining_time:.1f} минут")
+                        
+                        # Добавляем в активные рынки
+                        self.active_markets[market_id] = {
+                            'start_time': last_updated,  # Используем время из БД
+                            'last_log': current_time,
+                            'slug': slug,
+                            'question': market.get('question', '')
+                        }
+                        
+                        # Запускаем анализ в отдельном потоке
+                        analysis_thread = threading.Thread(
+                            target=self.analyze_market_continuously,
+                            args=(market_id, slug)
+                        )
+                        analysis_thread.daemon = True
+                        analysis_thread.start()
+                        
+                        logger.info(f"🔄 Восстановлен мониторинг для рынка: {slug}")
+                        
+                    else:
+                        logger.warning(f"⚠️ Не удалось получить данные для восстановленного рынка {slug} - закрываем")
+                        self.db_manager.update_market_analysis(market_id, {'status': 'закрыт (ошибка анализа)'})
+                        
+                except Exception as e:
+                    logger.error(f"❌ Ошибка восстановления рынка {market.get('slug', 'unknown')}: {e}")
+                    continue
+            
+            logger.info(f"✅ Восстановление завершено. Активных рынков: {len(self.active_markets)}")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка восстановления рынков в работе: {e}")
+            self.telegram_logger.log_error(f"Ошибка восстановления рынков: {e}")
 
 def main():
     """Главная функция"""
