@@ -523,26 +523,37 @@ class MarketAnalysisBot:
                                 # Рынок подходит для анализа - восстанавливаем
                                 logger.info(f"✅ Восстанавливаем ошибочно закрытый рынок {slug}, осталось {remaining_time_from_created:.1f} минут")
                                 
-                                # Возвращаем статус "в работе"
-                                self.db_manager.update_market_analysis(market_id, {'status': 'в работе'})
+                                # Проверяем, не истекло ли время анализа
+                                current_time = datetime.now()
+                                analysis_end_time = created_at_analytic + timedelta(minutes=ANALYSIS_TIME_MINUTES)
+                                remaining_time = (analysis_end_time - current_time).total_seconds() / 60
                                 
-                                # Добавляем в активные рынки
-                                self.active_markets[market_id] = {
-                                    'start_time': created_at_analytic,
-                                    'last_log': current_time,
-                                    'slug': slug,
-                                    'question': market.get('question', '')
-                                }
-                                
-                                # Запускаем анализ в отдельном потоке
-                                analysis_thread = threading.Thread(
-                                    target=self.analyze_market_continuously_restored,
-                                    args=(market_id, slug)
-                                )
-                                analysis_thread.daemon = True
-                                analysis_thread.start()
-                                
-                                logger.info(f"🔄 Восстановлен ошибочно закрытый рынок: {slug}")
+                                if remaining_time <= 0:
+                                    logger.warning(f"⚠️ Время анализа уже истекло для восстановленного рынка {slug}")
+                                    self.db_manager.update_market_analysis(market_id, {'status': 'закрыт (время истекло)'})
+                                else:
+                                    logger.info(f"⏰ Осталось времени для анализа: {remaining_time:.1f} минут")
+                                    
+                                    # Возвращаем статус "в работе"
+                                    self.db_manager.update_market_analysis(market_id, {'status': 'в работе'})
+                                    
+                                    # Добавляем в активные рынки
+                                    self.active_markets[market_id] = {
+                                        'start_time': created_at_analytic,
+                                        'last_log': current_time,
+                                        'slug': slug,
+                                        'question': market.get('question', '')
+                                    }
+                                    
+                                    # Запускаем анализ в отдельном потоке
+                                    analysis_thread = threading.Thread(
+                                        target=self.analyze_market_continuously_restored,
+                                        args=(market_id, slug)
+                                    )
+                                    analysis_thread.daemon = True
+                                    analysis_thread.start()
+                                    
+                                    logger.info(f"🔄 Восстановлен ошибочно закрытый рынок: {slug}")
                         else:
                             logger.warning(f"⚠️ Не удалось получить данные для ошибочно закрытого рынка {slug}")
                     else:
@@ -621,26 +632,37 @@ class MarketAnalysisBot:
                                 # Восстанавливаем ошибочно закрытый рынок
                                 logger.info(f"✅ ВОССТАНАВЛИВАЕМ ОШИБОЧНО ЗАКРЫТЫЙ РЫНОК #{i}: {slug}")
                                 
-                                # Возвращаем статус "в работе"
-                                self.db_manager.update_market_analysis(market_id, {'status': 'в работе'})
+                                # Проверяем, не истекло ли время анализа
+                                current_time = datetime.now()
+                                analysis_end_time = created_at_analytic + timedelta(minutes=ANALYSIS_TIME_MINUTES)
+                                remaining_time = (analysis_end_time - current_time).total_seconds() / 60
                                 
-                                # Добавляем в активные рынки
-                                self.active_markets[market_id] = {
-                                    'start_time': created_at_analytic,
-                                    'last_log': current_time,
-                                    'slug': slug,
-                                    'question': market.get('question', '')
-                                }
-                                
-                                # Запускаем анализ в отдельном потоке БЕЗ повторной проверки категории
-                                analysis_thread = threading.Thread(
-                                    target=self.analyze_market_continuously_restored,
-                                    args=(market_id, slug)
-                                )
-                                analysis_thread.daemon = True
-                                analysis_thread.start()
-                                
-                                logger.info(f"🔄 Восстановлен ошибочно закрытый рынок #{i}: {slug}")
+                                if remaining_time <= 0:
+                                    logger.warning(f"⚠️ Время анализа уже истекло для восстановленного рынка {slug}")
+                                    self.db_manager.update_market_analysis(market_id, {'status': 'закрыт (время истекло)'})
+                                else:
+                                    logger.info(f"⏰ Осталось времени для анализа: {remaining_time:.1f} минут")
+                                    
+                                    # Возвращаем статус "в работе"
+                                    self.db_manager.update_market_analysis(market_id, {'status': 'в работе'})
+                                    
+                                    # Добавляем в активные рынки
+                                    self.active_markets[market_id] = {
+                                        'start_time': created_at_analytic,
+                                        'last_log': current_time,
+                                        'slug': slug,
+                                        'question': market.get('question', '')
+                                    }
+                                    
+                                    # Запускаем анализ в отдельном потоке БЕЗ повторной проверки категории
+                                    analysis_thread = threading.Thread(
+                                        target=self.analyze_market_continuously_restored,
+                                        args=(market_id, slug)
+                                    )
+                                    analysis_thread.daemon = True
+                                    analysis_thread.start()
+                                    
+                                    logger.info(f"🔄 Восстановлен ошибочно закрытый рынок #{i}: {slug}")
                         else:
                             logger.warning(f"⚠️ Не удалось получить данные для ошибочно закрытого рынка {slug}")
                     elif status.startswith('закрыт'):
