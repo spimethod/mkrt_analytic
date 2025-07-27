@@ -96,6 +96,9 @@ class OCRScreenshotAnalyzer:
             full_text = await self.extract_text_from_image(full_screenshot)
             extracted_data['full_page_text'] = full_text
             
+            # Логируем извлеченный текст для отладки
+            logger.info(f"📄 Извлеченный текст со страницы: {full_text[:500]}...")
+            
             # 2. Скриншот области с заголовком
             try:
                 title_area = await self.page.query_selector('h1, [class*="title"], [class*="heading"]')
@@ -108,12 +111,46 @@ class OCRScreenshotAnalyzer:
             
             # 3. Скриншот области с ценами/процентами
             try:
-                price_area = await self.page.query_selector('[class*="price"], [class*="odds"], [class*="probability"], [class*="percentage"]')
-                if price_area:
-                    price_screenshot = await price_area.screenshot()
-                    price_text = await self.extract_text_from_image(price_screenshot)
-                    extracted_data['price_text'] = price_text
-            except:
+                # Расширяем селекторы для поиска цен в торговом виджете Polymarket
+                price_selectors = [
+                    '[class*="price"]',
+                    '[class*="odds"]', 
+                    '[class*="probability"]',
+                    '[class*="percentage"]',
+                    '[class*="trade"]',  # Торговый виджет
+                    '[class*="buy"]',    # Кнопки покупки
+                    '[class*="sell"]',   # Кнопки продажи
+                    '[class*="button"]', # Кнопки с ценами
+                    '[class*="option"]', # Опции Yes/No
+                    'button',            # Все кнопки
+                    '[class*="widget"]', # Виджеты
+                    '[class*="panel"]'   # Панели
+                ]
+                
+                price_text = ""
+                for selector in price_selectors:
+                    try:
+                        price_elements = await self.page.query_selector_all(selector)
+                        for element in price_elements:
+                            try:
+                                element_screenshot = await element.screenshot()
+                                element_text = await self.extract_text_from_image(element_screenshot)
+                                if element_text:
+                                    price_text += " " + element_text
+                                    logger.info(f"📊 Найдены цены в {selector}: {element_text[:100]}...")
+                            except Exception as e:
+                                continue
+                    except Exception as e:
+                        continue
+                
+                if price_text.strip():
+                    extracted_data['price_text'] = price_text.strip()
+                    logger.info(f"📊 Объединенный текст цен: {price_text[:200]}...")
+                else:
+                    logger.warning("⚠️ Цены не найдены ни в одном селекторе")
+                    
+            except Exception as e:
+                logger.error(f"❌ Ошибка извлечения цен: {e}")
                 pass
             
             # 4. Извлечение контракта через клик
