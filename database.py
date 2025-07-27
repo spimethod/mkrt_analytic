@@ -327,16 +327,40 @@ class DatabaseManager:
             cursor.execute("""
                 SELECT id, slug, status, last_updated, created_at_analytic, question
                 FROM mkrt_analytic
-                WHERE status LIKE 'закрыт%'
+                WHERE status LIKE 'закрыт%%'
                 ORDER BY last_updated DESC
                 LIMIT %s
             """, (limit,))
             
             markets = cursor.fetchall()
             cursor.close()
+            logger.info(f"Retrieved {len(markets)} recently closed markets")
             return markets
         except Exception as e:
             logger.error(f"Error getting recently closed markets: {e}")
+            return []
+    
+    def get_last_3_markets_for_verification(self):
+        """Получение последних 3 рынков для детальной проверки времени"""
+        try:
+            if not self.conn:
+                if not self.connect():
+                    return []
+            
+            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor.execute("""
+                SELECT id, slug, status, last_updated, created_at_analytic, question
+                FROM mkrt_analytic
+                ORDER BY last_updated DESC
+                LIMIT 3
+            """)
+            
+            markets = cursor.fetchall()
+            cursor.close()
+            logger.info(f"Retrieved {len(markets)} last markets for verification")
+            return markets
+        except Exception as e:
+            logger.error(f"Error getting last 3 markets: {e}")
             return []
     
     def close_connections(self):

@@ -38,6 +38,9 @@ class MarketAnalysisBot:
             # Проверяем недавно закрытые рынки на предмет ошибочного закрытия
             self.check_recently_closed_markets()
             
+            # Детальная проверка последних 3 рынков
+            self.verify_last_3_markets_timing()
+            
             # Восстанавливаем рынки, которые были в работе до перезапуска
             self.restore_in_progress_markets()
             
@@ -554,6 +557,106 @@ class MarketAnalysisBot:
         except Exception as e:
             logger.error(f"❌ Ошибка проверки закрытых рынков: {e}")
             self.telegram_logger.log_error(f"Ошибка проверки закрытых рынков: {e}")
+
+    def verify_last_3_markets_timing(self):
+        """Детальная проверка времени последних 3 рынков"""
+        try:
+            logger.info("🔍 Детальная проверка времени последних 3 рынков...")
+            
+            # Получаем последние 3 рынка
+            last_3_markets = self.db_manager.get_last_3_markets_for_verification()
+            
+            if not last_3_markets:
+                logger.info("ℹ️ Нет рынков для детальной проверки")
+                return
+            
+            logger.info(f"📊 Найдено {len(last_3_markets)} последних рынков для проверки")
+            
+            current_time = datetime.now()
+            
+            for i, market in enumerate(last_3_markets, 1):
+                try:
+                    market_id = market['id']
+                    slug = market['slug']
+                    status = market['status']
+                    created_at_analytic = market['created_at_analytic']
+                    last_updated = market['last_updated']
+                    
+                    logger.info(f"🔍 Рынок #{i}: {slug} (ID: {market_id})")
+                    logger.info(f"📅 Статус: {status}")
+                    logger.info(f"📅 Время создания: {created_at_analytic}")
+                    logger.info(f"📅 Последнее обновление: {last_updated}")
+                    
+                    # Вычисляем время анализа
+                    analysis_end_time_from_created = created_at_analytic + timedelta(minutes=ANALYSIS_TIME_MINUTES)
+                    remaining_time_from_created = (analysis_end_time_from_created - current_time).total_seconds() / 60
+                    
+                    analysis_end_time_from_updated = last_updated + timedelta(minutes=ANALYSIS_TIME_MINUTES)
+                    remaining_time_from_updated = (analysis_end_time_from_updated - current_time).total_seconds() / 60
+                    
+                    logger.info(f"⏰ Время анализа истекает (от создания): {analysis_end_time_from_created}")
+                    logger.info(f"⏰ Осталось времени (от создания): {remaining_time_from_created:.1f} минут")
+                    logger.info(f"⏰ Время анализа истекает (от обновления): {analysis_end_time_from_updated}")
+                    logger.info(f"⏰ Осталось времени (от обновления): {remaining_time_from_updated:.1f} минут")
+                    
+                    # Проверяем, был ли рынок ошибочно закрыт
+                    if status.startswith('закрыт') and current_time < analysis_end_time_from_created:
+                        logger.warning(f"⚠️ РЫНОК #{i} БЫЛ ОШИБОЧНО ЗАКРЫТ!")
+                        logger.warning(f"⚠️ {slug} - время еще не истекло, осталось {remaining_time_from_created:.1f} минут")
+                        
+                        # Проверяем категорию и булевость
+                        logger.info(f"🔍 Проверяем категорию для ошибочно закрытого рынка: {slug}")
+                        
+                        analysis_data = self.market_analyzer.get_market_data(slug)
+                        
+                        if analysis_data:
+                            if not analysis_data.get('is_boolean', True):
+                                reason = analysis_data.get('reason', 'non_boolean')
+                                if reason.startswith('category_'):
+                                    category = reason.replace('category_', '')
+                                    logger.info(f"⚠️ Рынок {slug} действительно относится к категории {category.upper()} - оставляем закрытым")
+                                else:
+                                    logger.info(f"⚠️ Рынок {slug} действительно не булевый - оставляем закрытым")
+                            else:
+                                # Восстанавливаем ошибочно закрытый рынок
+                                logger.info(f"✅ ВОССТАНАВЛИВАЕМ ОШИБОЧНО ЗАКРЫТЫЙ РЫНОК #{i}: {slug}")
+                                
+                                # Возвращаем статус "в работе"
+                                self.db_manager.update_market_analysis(market_id, {'status': 'в работе'})
+                                
+                                # Добавляем в активные рынки
+                                self.active_markets[market_id] = {
+                                    'start_time': created_at_analytic,
+                                    'last_log': current_time,
+                                    'slug': slug,
+                                    'question': market.get('question', '')
+                                }
+                                
+                                # Запускаем анализ в отдельном потоке
+                                analysis_thread = threading.Thread(
+                                    target=self.analyze_market_continuously,
+                                    args=(market_id, slug)
+                                )
+                                analysis_thread.daemon = True
+                                analysis_thread.start()
+                                
+                                logger.info(f"🔄 Восстановлен ошибочно закрытый рынок #{i}: {slug}")
+                        else:
+                            logger.warning(f"⚠️ Не удалось получить данные для ошибочно закрытого рынка {slug}")
+                    elif status.startswith('закрыт'):
+                        logger.info(f"ℹ️ Рынок #{i} {slug} был правильно закрыт - время истекло")
+                    else:
+                        logger.info(f"ℹ️ Рынок #{i} {slug} в статусе: {status}")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Ошибка проверки рынка #{i} {market.get('slug', 'unknown')}: {e}")
+                    continue
+            
+            logger.info(f"✅ Детальная проверка завершена. Активных рынков: {len(self.active_markets)}")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка детальной проверки рынков: {e}")
+            self.telegram_logger.log_error(f"Ошибка детальной проверки рынков: {e}")
 
 def main():
     """Главная функция"""
