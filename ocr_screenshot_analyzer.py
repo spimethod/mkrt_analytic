@@ -368,87 +368,77 @@ class OCRScreenshotAnalyzer:
             return ""
     
     async def detect_market_category(self):
-        """Определение категории рынка (Sports/Crypto/Other) через скрабинг"""
+        """Определение категории рынка (Sports/Crypto/Other) через проверку цвета активных табов"""
         try:
-            # 1. Ищем только активные/выделенные табы (как показано на скрине)
-            active_selectors = [
-                '[class*="active"]',
-                '[class*="selected"]',
-                '[aria-selected="true"]',
-                '[data-active="true"]',
-                '[class*="current"]',
-                '[class*="highlight"]'
+            logger.info("🔍 Проверяем активные категории по цвету табов...")
+            
+            # По умолчанию все рынки не-Sports и не-Crypto
+            is_sports = False
+            is_crypto = False
+            
+            # Ищем табы Sports и Crypto в навигации
+            sports_selectors = [
+                'a[href*="sports"]',
+                'a[href*="sport"]',
+                '[data-category="sports"]',
+                '[class*="sports"]',
+                'nav a:contains("Sports")',
+                'a:contains("Sports")'
             ]
             
-            active_text = ""
-            for selector in active_selectors:
+            crypto_selectors = [
+                'a[href*="crypto"]',
+                '[data-category="crypto"]',
+                '[class*="crypto"]',
+                'nav a:contains("Crypto")',
+                'a:contains("Crypto")'
+            ]
+            
+            # Проверяем Sports таб
+            for selector in sports_selectors:
                 try:
                     elements = await self.page.query_selector_all(selector)
                     for element in elements:
-                        text = await element.text_content()
-                        if text and len(text.strip()) > 1:
-                            # Фильтруем технические элементы
-                            filtered_text = text.strip().lower()
-                            if not any(tech in filtered_text for tech in ['1h', '6h', '1d', '1w', '1m', 'all', 'comments', 'holders', 'activity', 'post', 'trade', 'max', 'gear', 'chevron', 'dots', 'arrows', 'circle', 'link', 'show less', 'show more', 'united states', 'how it works', 'log in', 'sign up']):
-                                active_text += filtered_text + " "
-                                logger.info(f"Найден активный элемент: {text}")
+                        # Проверяем цвет текста
+                        color = await element.evaluate('(element) => window.getComputedStyle(element).color')
+                        logger.info(f"Sports таб найден, цвет: {color}")
+                        
+                        # Если цвет черный или темный - таб активен
+                        if 'rgb(0, 0, 0)' in color or 'black' in color or 'rgb(33, 33, 33)' in color:
+                            is_sports = True
+                            logger.warning(f"⚠️ Sports таб активен (цвет: {color})")
+                            break
                 except Exception as e:
-                    logger.debug(f"Ошибка поиска активных элементов: {e}")
+                    logger.debug(f"Ошибка проверки Sports селектора {selector}: {e}")
                     continue
             
-            # 2. Ищем в URL и заголовке страницы
-            current_url = self.page.url.lower()
-            page_title = await self.page.title()
-            if page_title:
-                page_title = page_title.lower()
+            # Проверяем Crypto таб
+            for selector in crypto_selectors:
+                try:
+                    elements = await self.page.query_selector_all(selector)
+                    for element in elements:
+                        # Проверяем цвет текста
+                        color = await element.evaluate('(element) => window.getComputedStyle(element).color')
+                        logger.info(f"Crypto таб найден, цвет: {color}")
+                        
+                        # Если цвет черный или темный - таб активен
+                        if 'rgb(0, 0, 0)' in color or 'black' in color or 'rgb(33, 33, 33)' in color:
+                            is_crypto = True
+                            logger.warning(f"⚠️ Crypto таб активен (цвет: {color})")
+                            break
+                except Exception as e:
+                    logger.debug(f"Ошибка проверки Crypto селектора {selector}: {e}")
+                    continue
             
-            # 3. Ищем в полном тексте страницы
-            full_text = await self.page.text_content('body')
-            full_text = full_text.lower()
-            
-            # Объединяем весь текст для анализа
-            all_text = f"{active_text} {current_url} {page_title} {full_text}"
-            
-            logger.info(f"Анализируем текст для определения категории...")
-            
-            # Определяем категорию с более точными индикаторами
-            sports_indicators = [
-                'sports', 'mlb', 'nba', 'nfl', 'wnba', 'golf', 'epl', 'cfb',
-                'baseball', 'basketball', 'football', 'soccer', 'tennis'
-            ]
-            
-            crypto_indicators = [
-                'crypto', 'bitcoin', 'ethereum', 'btc', 'eth', 'blockchain',
-                'token', 'coin', 'defi', 'nft', 'web3', 'mining',
-                'cryptocurrency', 'digital currency'
-            ]
-            
-            # Проверяем Sports с подсчетом совпадений
-            sports_score = 0
-            for indicator in sports_indicators:
-                if indicator in all_text:
-                    sports_score += 1
-                    logger.info(f"Найден Sports индикатор: {indicator}")
-            
-            # Проверяем Crypto с подсчетом совпадений
-            crypto_score = 0
-            for indicator in crypto_indicators:
-                if indicator in all_text:
-                    crypto_score += 1
-                    logger.info(f"Найден Crypto индикатор: {indicator}")
-            
-            logger.info(f"Sports score: {sports_score}, Crypto score: {crypto_score}")
-            
-            # Определяем категорию на основе количества совпадений (более строгие критерии)
-            # Увеличиваем пороги для более точного определения
-            if sports_score >= 4:  # Требуем минимум 4 совпадения для Sports
-                logger.info(f"⚠️ Рынок определен как Sports (score: {sports_score})")
+            # Определяем категорию на основе активных табов
+            if is_sports:
+                logger.warning(f"⚠️ Рынок определен как Sports (активный таб)")
                 return 'sports'
-            elif crypto_score >= 3:  # Требуем минимум 3 совпадения для Crypto
-                logger.info(f"⚠️ Рынок определен как Crypto (score: {crypto_score})")
+            elif is_crypto:
+                logger.warning(f"⚠️ Рынок определен как Crypto (активный таб)")
                 return 'crypto'
             else:
-                logger.info("✅ Рынок не относится к Sports/Crypto категориям")
+                logger.info("✅ Рынок не относится к Sports/Crypto категориям (нет активных табов)")
                 return 'other'
             
         except Exception as e:
