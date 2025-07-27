@@ -354,26 +354,37 @@ class MarketAnalysisBot:
             logger.info(f"📊 Найдено {len(in_progress_markets)} рынков в работе")
             
             current_time = datetime.now()
+            logger.info(f"🕐 Текущее время: {current_time}")
+            logger.info(f"⏰ Время анализа (минут): {ANALYSIS_TIME_MINUTES}")
             
             for market in in_progress_markets:
                 try:
                     # Правильно обращаемся к словарю
                     market_id = market['id']
                     slug = market['slug']
-                    created_at_analytic = market['created_at_analytic']  # Используем время создания
+                    created_at_analytic = market['created_at_analytic']
+                    last_updated = market['last_updated']
                     
                     logger.info(f"🔍 Проверяем рынок: {slug} (ID: {market_id})")
                     logger.info(f"📅 Время создания: {created_at_analytic}")
+                    logger.info(f"📅 Последнее обновление: {last_updated}")
                     
-                    # Проверяем, не истекло ли время анализа (от времени создания)
-                    analysis_end_time = created_at_analytic + timedelta(minutes=ANALYSIS_TIME_MINUTES)
-                    remaining_time = (analysis_end_time - current_time).total_seconds() / 60
+                    # Проверяем время от создания
+                    analysis_end_time_from_created = created_at_analytic + timedelta(minutes=ANALYSIS_TIME_MINUTES)
+                    remaining_time_from_created = (analysis_end_time_from_created - current_time).total_seconds() / 60
                     
-                    logger.info(f"⏰ Время анализа истекает: {analysis_end_time}")
-                    logger.info(f"⏰ Осталось времени: {remaining_time:.1f} минут")
+                    # Проверяем время от последнего обновления
+                    analysis_end_time_from_updated = last_updated + timedelta(minutes=ANALYSIS_TIME_MINUTES)
+                    remaining_time_from_updated = (analysis_end_time_from_updated - current_time).total_seconds() / 60
                     
-                    if current_time >= analysis_end_time:
-                        logger.info(f"⏰ Время анализа истекло для рынка {slug} - закрываем")
+                    logger.info(f"⏰ Время анализа истекает (от создания): {analysis_end_time_from_created}")
+                    logger.info(f"⏰ Осталось времени (от создания): {remaining_time_from_created:.1f} минут")
+                    logger.info(f"⏰ Время анализа истекает (от обновления): {analysis_end_time_from_updated}")
+                    logger.info(f"⏰ Осталось времени (от обновления): {remaining_time_from_updated:.1f} минут")
+                    
+                    # Используем время создания для проверки истечения
+                    if current_time >= analysis_end_time_from_created:
+                        logger.info(f"⏰ Время анализа истекло для рынка {slug} (от создания) - закрываем")
                         self.db_manager.update_market_analysis(market_id, {'status': 'закрыт (время истекло)'})
                         continue
                     
@@ -408,7 +419,7 @@ class MarketAnalysisBot:
                             continue
                         
                         # Рынок подходит для анализа - восстанавливаем мониторинг
-                        logger.info(f"✅ Восстанавливаем анализ для рынка {slug}, осталось {remaining_time:.1f} минут")
+                        logger.info(f"✅ Восстанавливаем анализ для рынка {slug}, осталось {remaining_time_from_created:.1f} минут")
                         
                         # Добавляем в активные рынки
                         self.active_markets[market_id] = {
