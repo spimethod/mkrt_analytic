@@ -89,13 +89,17 @@ class DatabaseManager:
     def insert_market_to_analytic(self, market_data):
         """Добавление рынка в аналитическую таблицу mkrt_analytic"""
         try:
+            logger.info(f"🔄 Попытка вставки рынка: {market_data.get('slug', 'unknown')}")
+            
             if not self.conn:
+                logger.info("📡 Подключаемся к БД...")
                 if not self.connect():
+                    logger.error("❌ Не удалось подключиться к БД")
                     return None
             
             # Проверяем, существует ли уже рынок с таким slug
             if self.market_exists_in_analytic(market_data['slug']):
-                logger.info(f"Market {market_data['slug']} already exists in analytic database")
+                logger.info(f"ℹ️ Рынок {market_data['slug']} уже существует в аналитической БД")
                 # Получаем ID существующего рынка
                 cursor = self.conn.cursor()
                 cursor.execute("SELECT id FROM mkrt_analytic WHERE slug = %s", (market_data['slug'],))
@@ -103,7 +107,30 @@ class DatabaseManager:
                 cursor.close()
                 return result[0] if result else None
             
+            logger.info(f"📝 Вставляем новый рынок: {market_data['slug']}")
+            
             cursor = self.conn.cursor()
+            
+            # Подготавливаем данные для вставки
+            insert_data = (
+                market_data['id'],
+                market_data['question'],
+                market_data['created_at'],
+                market_data['active'],
+                market_data['enable_order_book'],
+                market_data['slug'],
+                market_data.get('market_exists', True),  # По умолчанию True
+                market_data.get('is_boolean', True),     # По умолчанию True
+                market_data.get('yes_percentage', 0),
+                market_data.get('yes_order_book_total', 0),
+                market_data.get('no_order_book_total', 0),
+                market_data.get('contract_address', ''),
+                market_data.get('status', 'в работе'),
+                datetime.now()
+            )
+            
+            logger.info(f"📊 Данные для вставки: {insert_data}")
+            
             cursor.execute("""
                 INSERT INTO mkrt_analytic 
                 (polymarket_id, question, created_at, active, enable_order_book, slug, 
@@ -113,30 +140,23 @@ class DatabaseManager:
                 ON CONFLICT (polymarket_id) DO UPDATE SET
                 last_updated = EXCLUDED.last_updated
                 RETURNING id
-            """, (
-                market_data['id'],
-                market_data['question'],
-                market_data['created_at'],
-                market_data['active'],
-                market_data['enable_order_book'],
-                market_data['slug'],
-                market_data.get('market_exists', False),
-                market_data.get('is_boolean', False),
-                market_data.get('yes_percentage', 0),
-                market_data.get('yes_order_book_total', 0),
-                market_data.get('no_order_book_total', 0),
-                market_data.get('contract_address', ''),
-                market_data.get('status', 'в работе'),
-                datetime.now()
-            ))
+            """, insert_data)
             
-            market_id = cursor.fetchone()[0]
-            self.conn.commit()
-            cursor.close()
-            logger.info(f"Market {market_data['slug']} inserted/updated in analytic database")
-            return market_id
+            result = cursor.fetchone()
+            if result:
+                market_id = result[0]
+                self.conn.commit()
+                cursor.close()
+                logger.info(f"✅ Рынок {market_data['slug']} успешно вставлен/обновлен! ID: {market_id}")
+                return market_id
+            else:
+                logger.error("❌ Не удалось получить ID вставленной записи")
+                self.conn.rollback()
+                cursor.close()
+                return None
+                
         except Exception as e:
-            logger.error(f"Error inserting market to analytic: {e}")
+            logger.error(f"❌ Ошибка вставки рынка в аналитическую БД: {e}")
             if self.conn:
                 self.conn.rollback()
             return None
@@ -144,20 +164,20 @@ class DatabaseManager:
     def update_market_analysis(self, market_id, analysis_data):
         """Обновление данных анализа рынка"""
         try:
+            logger.info(f"🔄 Обновление анализа для рынка ID: {market_id}")
+            
             if not self.conn:
+                logger.info("📡 Подключаемся к БД...")
                 if not self.connect():
+                    logger.error("❌ Не удалось подключиться к БД")
                     return False
             
             cursor = self.conn.cursor()
-            cursor.execute("""
-                UPDATE mkrt_analytic 
-                SET market_exists = %s, is_boolean = %s, yes_percentage = %s,
-                    yes_order_book_total = %s, no_order_book_total = %s,
-                    contract_address = %s, status = %s, last_updated = %s
-                WHERE id = %s
-            """, (
-                analysis_data.get('market_exists', False),
-                analysis_data.get('is_boolean', False),
+            
+            # Подготавливаем данные для обновления
+            update_data = (
+                analysis_data.get('market_exists', True),  # По умолчанию True
+                analysis_data.get('is_boolean', True),     # По умолчанию True
                 analysis_data.get('yes_percentage', 0),
                 analysis_data.get('yes_order_book_total', 0),
                 analysis_data.get('no_order_book_total', 0),
@@ -165,14 +185,31 @@ class DatabaseManager:
                 analysis_data.get('status', 'в работе'),
                 datetime.now(),
                 market_id
-            ))
+            )
             
+            logger.info(f"📊 Данные для обновления: {update_data}")
+            
+            cursor.execute("""
+                UPDATE mkrt_analytic 
+                SET market_exists = %s, is_boolean = %s, yes_percentage = %s,
+                    yes_order_book_total = %s, no_order_book_total = %s,
+                    contract_address = %s, status = %s, last_updated = %s
+                WHERE id = %s
+            """, update_data)
+            
+            rows_affected = cursor.rowcount
             self.conn.commit()
             cursor.close()
-            logger.info(f"Market analysis updated for ID {market_id}")
-            return True
+            
+            if rows_affected > 0:
+                logger.info(f"✅ Анализ рынка ID {market_id} обновлен! Затронуто строк: {rows_affected}")
+                return True
+            else:
+                logger.warning(f"⚠️ Не найдено записей для обновления (ID: {market_id})")
+                return False
+                
         except Exception as e:
-            logger.error(f"Error updating market analysis: {e}")
+            logger.error(f"❌ Ошибка обновления анализа рынка: {e}")
             if self.conn:
                 self.conn.rollback()
             return False
