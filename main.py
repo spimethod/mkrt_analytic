@@ -536,7 +536,7 @@ class MarketAnalysisBot:
                                 
                                 # Запускаем анализ в отдельном потоке
                                 analysis_thread = threading.Thread(
-                                    target=self.analyze_market_continuously,
+                                    target=self.analyze_market_continuously_restored,
                                     args=(market_id, slug)
                                 )
                                 analysis_thread.daemon = True
@@ -632,9 +632,9 @@ class MarketAnalysisBot:
                                     'question': market.get('question', '')
                                 }
                                 
-                                # Запускаем анализ в отдельном потоке
+                                # Запускаем анализ в отдельном потоке БЕЗ повторной проверки категории
                                 analysis_thread = threading.Thread(
-                                    target=self.analyze_market_continuously,
+                                    target=self.analyze_market_continuously_restored,
                                     args=(market_id, slug)
                                 )
                                 analysis_thread.daemon = True
@@ -657,6 +657,64 @@ class MarketAnalysisBot:
         except Exception as e:
             logger.error(f"❌ Ошибка детальной проверки рынков: {e}")
             self.telegram_logger.log_error(f"Ошибка детальной проверки рынков: {e}")
+    
+    def analyze_market_continuously_restored(self, market_id, slug):
+        """Непрерывный анализ восстановленного рынка БЕЗ повторной проверки категории"""
+        start_time = datetime.now()
+        end_time = start_time + timedelta(minutes=ANALYSIS_TIME_MINUTES)
+        retry_count = 0
+        
+        logger.info(f"Starting continuous analysis for RESTORED market {slug} for {ANALYSIS_TIME_MINUTES} minutes")
+        
+        while datetime.now() < end_time and self.running:
+            try:
+                # Анализируем рынок
+                analysis_data = self.market_analyzer.get_market_data(slug)
+                
+                if analysis_data:
+                    # Конвертируем данные в нужный формат для базы
+                    db_data = {
+                        'market_exists': analysis_data.get('market_exists', False),
+                        'is_boolean': analysis_data.get('is_boolean', False),
+                        'yes_percentage': analysis_data.get('yes_percentage', 0),
+                        'volume': analysis_data.get('volume', 'New'),
+                        'contract_address': analysis_data.get('contract_address', ''),
+                        'status': 'в работе'
+                    }
+                    
+                    # Обновляем данные в базе
+                    self.db_manager.update_market_analysis(market_id, db_data)
+                    retry_count = 0  # Сбрасываем счетчик ошибок при успехе
+                else:
+                    retry_count += 1
+                    if retry_count >= MAX_RETRIES:
+                        logger.error(f"Max retries reached for RESTORED market {slug}, stopping analysis")
+                        self.stop_market_analysis(market_id, "закрыт")
+                        break
+                    else:
+                        logger.warning(f"Analysis failed for RESTORED market {slug}, retry {retry_count}/{MAX_RETRIES}")
+                        time.sleep(RETRY_DELAY_SECONDS)
+                        continue
+                
+                # Ждем PING_INTERVAL_MINUTES минут перед следующим анализом
+                time.sleep(PING_INTERVAL_MINUTES * 60)
+                
+            except Exception as e:
+                retry_count += 1
+                error_msg = f"Error analyzing RESTORED market {slug}: {e}"
+                logger.error(error_msg)
+                self.telegram_logger.log_error(error_msg, slug)
+                
+                if retry_count >= MAX_RETRIES:
+                    logger.error(f"Max retries reached for RESTORED market {slug}, stopping analysis")
+                    self.stop_market_analysis(market_id, "закрыт")
+                    break
+                else:
+                    time.sleep(RETRY_DELAY_SECONDS)
+        
+        # Завершаем анализ рынка
+        if market_id in self.active_markets:
+            self.stop_market_analysis(market_id, "закрыт")
 
 def main():
     """Главная функция"""
