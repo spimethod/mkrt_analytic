@@ -316,6 +316,29 @@ class DatabaseManager:
             logger.error(f"Error getting closed markets slugs: {e}")
             return []
     
+    def get_recently_closed_markets(self, limit=10):
+        """Получение недавно закрытых рынков для проверки на ошибочное закрытие"""
+        try:
+            if not self.conn:
+                if not self.connect():
+                    return []
+            
+            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor.execute("""
+                SELECT id, slug, status, last_updated, created_at_analytic, question
+                FROM mkrt_analytic
+                WHERE status LIKE 'закрыт%'
+                ORDER BY last_updated DESC
+                LIMIT %s
+            """, (limit,))
+            
+            markets = cursor.fetchall()
+            cursor.close()
+            return markets
+        except Exception as e:
+            logger.error(f"Error getting recently closed markets: {e}")
+            return []
+    
     def close_connections(self):
         """Закрытие соединения с базой данных"""
         if self.conn:
