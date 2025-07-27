@@ -363,6 +363,25 @@ class DatabaseManager:
             logger.error(f"Error getting last 3 markets: {e}")
             return []
     
+    def get_market_by_id(self, market_id):
+        """Получение рынка по ID из аналитической таблицы"""
+        try:
+            if not self.conn:
+                if not self.connect():
+                    return None
+            
+            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor.execute("""
+                SELECT * FROM mkrt_analytic WHERE id = %s
+            """, (market_id,))
+            
+            market = cursor.fetchone()
+            cursor.close()
+            return market
+        except Exception as e:
+            logger.error(f"Error getting market by ID: {e}")
+            return None
+    
     def close_connections(self):
         """Закрытие соединения с базой данных"""
         if self.conn:

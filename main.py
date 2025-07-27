@@ -660,11 +660,17 @@ class MarketAnalysisBot:
     
     def analyze_market_continuously_restored(self, market_id, slug):
         """Непрерывный анализ восстановленного рынка БЕЗ повторной проверки категории"""
-        start_time = datetime.now()
-        end_time = start_time + timedelta(minutes=ANALYSIS_TIME_MINUTES)
+        # Получаем время создания рынка из базы данных
+        market_data = self.db_manager.get_market_by_id(market_id)
+        if not market_data:
+            logger.error(f"Cannot find market data for ID {market_id}")
+            return
+        
+        created_at_analytic = market_data['created_at_analytic']
+        end_time = created_at_analytic + timedelta(minutes=ANALYSIS_TIME_MINUTES)
         retry_count = 0
         
-        logger.info(f"Starting continuous analysis for RESTORED market {slug} for {ANALYSIS_TIME_MINUTES} minutes")
+        logger.info(f"Starting continuous analysis for RESTORED market {slug} until {end_time}")
         
         while datetime.now() < end_time and self.running:
             try:
@@ -712,8 +718,12 @@ class MarketAnalysisBot:
                 else:
                     time.sleep(RETRY_DELAY_SECONDS)
         
-        # Завершаем анализ рынка
-        if market_id in self.active_markets:
+        # Завершаем анализ рынка только если время действительно истекло
+        if datetime.now() >= end_time:
+            logger.info(f"Analysis time expired for RESTORED market {slug}")
+            self.stop_market_analysis(market_id, "закрыт (время истекло)")
+        elif market_id in self.active_markets:
+            logger.info(f"Stopping analysis for RESTORED market {slug} due to bot shutdown")
             self.stop_market_analysis(market_id, "закрыт")
 
 def main():
