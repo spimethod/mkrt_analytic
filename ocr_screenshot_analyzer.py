@@ -113,55 +113,38 @@ class OCRScreenshotAnalyzer:
             try:
                 # Расширяем селекторы для поиска цен в торговом виджете Polymarket
                 price_selectors = [
-                    # Специфичные селекторы для Polymarket
-                    '[data-testid*="trade"]',
-                    '[data-testid*="buy"]',
-                    '[data-testid*="sell"]',
-                    '[data-testid*="yes"]',
-                    '[data-testid*="no"]',
-                    '[data-testid*="price"]',
-                    '[data-testid*="button"]',
-                    # CSS классы для торгового виджета
-                    '[class*="trade-widget"]',
-                    '[class*="buy-sell"]',
-                    '[class*="market-actions"]',
-                    '[class*="trading"]',
-                    '[class*="order"]',
-                    # Более общие селекторы
-                    '[class*="price"]',
-                    '[class*="odds"]', 
-                    '[class*="probability"]',
-                    '[class*="percentage"]',
-                    '[class*="trade"]',  # Торговый виджет
-                    '[class*="buy"]',    # Кнопки покупки
-                    '[class*="sell"]',   # Кнопки продажи
-                    '[class*="button"]', # Кнопки с ценами
-                    '[class*="option"]', # Опции Yes/No
-                    'button',            # Все кнопки
-                    '[class*="widget"]', # Виджеты
-                    '[class*="panel"]',  # Панели
-                    # Специфичные селекторы для Polymarket (на основе реальной структуры)
-                    '[class*="market-trading"]',
-                    '[class*="trading-panel"]',
-                    '[class*="market-actions"]',
-                    '[class*="buy-sell-panel"]',
-                    '[class*="price-display"]',
-                    '[class*="odds-display"]',
-                    '[class*="probability-display"]',
-                    # Селекторы по ролям и атрибутам
-                    '[role="button"]',
-                    '[role="tab"]',
-                    '[aria-label*="buy"]',
-                    '[aria-label*="sell"]',
-                    '[aria-label*="yes"]',
-                    '[aria-label*="no"]',
-                    # Селекторы по тексту
+                    # Точные селекторы для торгового виджета (на основе скриншота)
                     'button:has-text("Yes")',
                     'button:has-text("No")',
                     'div:has-text("Yes")',
                     'div:has-text("No")',
                     'span:has-text("Yes")',
-                    'span:has-text("No")'
+                    'span:has-text("No")',
+                    # Селекторы для торгового виджета
+                    '[class*="trading-widget"]',
+                    '[class*="buy-sell"]',
+                    '[class*="market-actions"]',
+                    '[class*="trading-panel"]',
+                    '[class*="price-button"]',
+                    '[class*="outcome-button"]',
+                    # Селекторы по ролям
+                    '[role="button"]:has-text("Yes")',
+                    '[role="button"]:has-text("No")',
+                    '[role="tab"]:has-text("Yes")',
+                    '[role="tab"]:has-text("No")',
+                    # Более общие селекторы
+                    '[class*="price"]',
+                    '[class*="odds"]', 
+                    '[class*="probability"]',
+                    '[class*="percentage"]',
+                    '[class*="trade"]',
+                    '[class*="buy"]',
+                    '[class*="sell"]',
+                    '[class*="button"]',
+                    '[class*="option"]',
+                    'button',
+                    '[class*="widget"]',
+                    '[class*="panel"]'
                 ]
                 
                 price_text = ""
@@ -222,28 +205,28 @@ class OCRScreenshotAnalyzer:
             
             # 1. Ищем кнопку "Show more"
             show_more_selectors = [
-                'button:has-text("Show more")',
+                # Точные селекторы для кнопки Show more (на основе скриншота)
                 'a:has-text("Show more")',
+                'button:has-text("Show more")',
+                'span:has-text("Show more")',
+                'div:has-text("Show more")',
+                # Селекторы для кнопки со стрелочкой
+                'a:has-text("Show more"):has([class*="arrow"])',
+                'button:has-text("Show more"):has([class*="arrow"])',
+                'a:has-text("Show more"):has([class*="chevron"])',
+                'button:has-text("Show more"):has([class*="chevron"])',
+                'a:has-text("Show more"):has([class*="icon"])',
+                'button:has-text("Show more"):has([class*="icon"])',
+                # Селекторы для спойлера в разделе Rules
+                '[class*="rules"] a:has-text("Show more")',
+                '[class*="rules"] button:has-text("Show more")',
+                '[class*="expandable"] a:has-text("Show more")',
+                '[class*="expandable"] button:has-text("Show more")',
+                # Более общие селекторы
                 '[class*="show-more"]',
                 '[class*="expand"]',
                 'button[aria-label*="more"]',
                 'a[aria-label*="more"]',
-                # Более точные селекторы
-                'button:has-text("Show more"):not(:has-text("¥"))',
-                'a:has-text("Show more"):not(:has-text("¥"))',
-                'button:has-text("Show more"):not(:has-text("$"))',
-                'a:has-text("Show more"):not(:has-text("$"))',
-                # Селекторы для кнопки со стрелочкой (спойлер)
-                'button:has-text("Show more"):has([class*="arrow"])',
-                'a:has-text("Show more"):has([class*="arrow"])',
-                'button:has-text("Show more"):has([class*="chevron"])',
-                'a:has-text("Show more"):has([class*="chevron"])',
-                'button:has-text("Show more"):has([class*="icon"])',
-                'a:has-text("Show more"):has([class*="icon"])',
-                # Селекторы для спойлера
-                '[class*="spoiler"] button',
-                '[class*="expandable"] button',
-                '[class*="collapsible"] button',
                 # Селекторы по data-атрибутам
                 '[data-testid*="expand"]',
                 '[data-testid*="more"]',
