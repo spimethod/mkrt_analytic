@@ -208,7 +208,22 @@ class OCRScreenshotAnalyzer:
                 'button:has-text("Show more"):not(:has-text("¥"))',
                 'a:has-text("Show more"):not(:has-text("¥"))',
                 'button:has-text("Show more"):not(:has-text("$"))',
-                'a:has-text("Show more"):not(:has-text("$"))'
+                'a:has-text("Show more"):not(:has-text("$"))',
+                # Селекторы для кнопки со стрелочкой (спойлер)
+                'button:has-text("Show more"):has([class*="arrow"])',
+                'a:has-text("Show more"):has([class*="arrow"])',
+                'button:has-text("Show more"):has([class*="chevron"])',
+                'a:has-text("Show more"):has([class*="chevron"])',
+                'button:has-text("Show more"):has([class*="icon"])',
+                'a:has-text("Show more"):has([class*="icon"])',
+                # Селекторы для спойлера
+                '[class*="spoiler"] button',
+                '[class*="expandable"] button',
+                '[class*="collapsible"] button',
+                # Селекторы по data-атрибутам
+                '[data-testid*="expand"]',
+                '[data-testid*="more"]',
+                '[aria-expanded="false"]'
             ]
             
             show_more_button = None
@@ -228,6 +243,16 @@ class OCRScreenshotAnalyzer:
             
             if not show_more_button:
                 logger.warning("❌ Кнопка Show more не найдена")
+                # Попробуем найти все кнопки на странице для отладки
+                all_buttons = await self.page.query_selector_all('button')
+                logger.info(f"🔍 Найдено {len(all_buttons)} кнопок на странице")
+                for i, btn in enumerate(all_buttons[:10]):  # Показываем первые 10
+                    try:
+                        btn_text = await btn.text_content()
+                        btn_class = await btn.get_attribute('class')
+                        logger.info(f"🔍 Кнопка {i}: '{btn_text}' (class: {btn_class})")
+                    except:
+                        continue
                 return await self.extract_full_contract_from_page()
             
             # 2. Кликаем на Show more
