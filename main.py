@@ -352,9 +352,12 @@ class MarketAnalysisBot:
             
             for market in in_progress_markets:
                 try:
+                    # Правильно обращаемся к словарю
                     market_id = market['id']
                     slug = market['slug']
                     last_updated = market['last_updated']
+                    
+                    logger.info(f"🔍 Проверяем рынок: {slug} (ID: {market_id})")
                     
                     # Проверяем, не истекло ли время анализа
                     analysis_end_time = last_updated + timedelta(minutes=ANALYSIS_TIME_MINUTES)
@@ -370,7 +373,8 @@ class MarketAnalysisBot:
                         continue
                     
                     # Проверяем, не закрыт ли уже этот рынок
-                    if slug in {market['slug'] for market in self.db_manager.get_closed_markets_slugs()}:
+                    closed_slugs = self.db_manager.get_closed_markets_slugs()
+                    if slug in closed_slugs:
                         logger.info(f"ℹ️ Рынок {slug} уже закрыт, пропускаем")
                         continue
                     
