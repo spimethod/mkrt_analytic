@@ -442,7 +442,7 @@ class MarketAnalysisBot:
                         
                         # Запускаем анализ в отдельном потоке
                         analysis_thread = threading.Thread(
-                            target=self.analyze_market_continuously,
+                            target=self.analyze_market_continuously_restored,
                             args=(market_id, slug)
                         )
                         analysis_thread.daemon = True
