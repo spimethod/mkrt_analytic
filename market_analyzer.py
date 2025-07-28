@@ -120,92 +120,76 @@ class MarketAnalyzer:
             return None
     
     async def extract_yes_percentage(self):
-        """Извлечение процента Yes из '67% chance'"""
+        """Извлечение процента Yes из '67% chance' и 'Yes 67¢'"""
         try:
-            # Ищем элемент, который содержит и Volume и chance в одном блоке
-            main_container = await self.page.query_selector('div:has-text("Vol"):has-text("chance")')
-            if main_container:
-                text = await main_container.text_content()
-                logger.info(f"📄 Найден основной контейнер: '{text.strip()}'")
-                
-                # Ищем процент в формате "67% chance"
-                percentage_match = re.search(r'(\d{1,2}(?:\.\d+)?)\s*%\s*chance', text, re.IGNORECASE)
-                if percentage_match:
-                    percentage = float(percentage_match.group(1))
-                    if 0 <= percentage <= 100:
-                        logger.info(f"✅ Найден процент Yes: {percentage}% (из основного контейнера)")
-                        return percentage
+            # Ищем элемент с процентом chance
+            chance_elements = await self.page.query_selector_all('div:has-text("chance"), span:has-text("chance")')
+            chance_percentage = None
             
-            # Ищем конкретные значения, которые видны на странице
-            specific_selectors = [
-                'div:has-text("16%")',
-                'span:has-text("16%")',
-                'div:has-text("67%")',
-                'span:has-text("67%")',
-                'div:has-text("85%")',
-                'span:has-text("85%")'
-            ]
+            for element in chance_elements:
+                text = await element.text_content()
+                if text:
+                    logger.info(f"📄 Найден элемент с chance: '{text.strip()}'")
+                    
+                    # Ищем процент в формате "67% chance"
+                    percentage_match = re.search(r'(\d{1,2}(?:\.\d+)?)\s*%\s*chance', text, re.IGNORECASE)
+                    if percentage_match:
+                        percentage = float(percentage_match.group(1))
+                        if 0 <= percentage <= 100:
+                            chance_percentage = percentage
+                            logger.info(f"✅ Найден процент из chance: {percentage}%")
+                            break
             
-            for selector in specific_selectors:
-                elements = await self.page.query_selector_all(selector)
-                logger.info(f"🔍 Поиск по конкретному селектору '{selector}': найдено {len(elements)} элементов")
-                
-                for i, element in enumerate(elements):
-                    text = await element.text_content()
-                    if text:
-                        logger.info(f"📄 Конкретный элемент {i+1}: '{text.strip()}'")
-                        
-                        # Ищем процент в формате "67% chance"
-                        percentage_match = re.search(r'(\d{1,2}(?:\.\d+)?)\s*%\s*chance', text, re.IGNORECASE)
-                        if percentage_match:
-                            percentage = float(percentage_match.group(1))
-                            if 0 <= percentage <= 100:
-                                logger.info(f"✅ Найден процент Yes: {percentage}% (из конкретного элемента)")
-                                return percentage
-                        
-                        # Ищем просто процент (только 1-2 цифры)
-                        percentage_match = re.search(r'(\d{1,2}(?:\.\d+)?)\s*%', text)
-                        if percentage_match:
-                            percentage = float(percentage_match.group(1))
-                            if 0 <= percentage <= 100:
-                                logger.info(f"✅ Найден процент Yes: {percentage}%")
-                                return percentage
+            # Ищем элемент с ценой Yes
+            yes_price_elements = await self.page.query_selector_all('div:has-text("Yes"), span:has-text("Yes"), button:has-text("Yes")')
+            yes_price_percentage = None
             
-            # Если не нашли в основном контейнере, ищем в других местах
-            fallback_selectors = [
-                'div:has-text("chance")',
-                '[class*="chance"]',
-                '[class*="percentage"]',
-                'div:has-text("67%")',
-                'span:has-text("67%")'
-            ]
+            for element in yes_price_elements:
+                text = await element.text_content()
+                if text:
+                    logger.info(f"📄 Найден элемент с Yes: '{text.strip()}'")
+                    
+                    # Ищем цену в формате "Yes 67¢"
+                    price_match = re.search(r'Yes\s*(\d{1,2}(?:\.\d+)?)\s*¢', text)
+                    if price_match:
+                        price_cents = float(price_match.group(1))
+                        if 0 <= price_cents <= 100:
+                            yes_price_percentage = price_cents
+                            logger.info(f"✅ Найден процент из цены Yes: {price_cents}%")
+                            break
             
-            for selector in fallback_selectors:
-                elements = await self.page.query_selector_all(selector)
-                logger.info(f"🔍 Поиск по fallback селектору '{selector}': найдено {len(elements)} элементов")
-                
-                for i, element in enumerate(elements):
-                    text = await element.text_content()
-                    if text:
-                        logger.info(f"📄 Fallback элемент {i+1}: '{text.strip()}'")
-                        
-                        # Ищем процент в формате "67% chance"
-                        percentage_match = re.search(r'(\d{1,2}(?:\.\d+)?)\s*%\s*chance', text, re.IGNORECASE)
-                        if percentage_match:
-                            percentage = float(percentage_match.group(1))
-                            # Проверяем, что это разумное значение (между 0 и 100)
-                            if 0 <= percentage <= 100:
-                                logger.info(f"✅ Найден процент Yes: {percentage}% (из chance)")
-                                return percentage
-                        
-                        # Ищем просто процент (только 1-2 цифры)
-                        percentage_match = re.search(r'(\d{1,2}(?:\.\d+)?)\s*%', text)
-                        if percentage_match:
-                            percentage = float(percentage_match.group(1))
-                            # Проверяем, что это разумное значение (между 0 и 100)
-                            if 0 <= percentage <= 100:
-                                logger.info(f"✅ Найден процент Yes: {percentage}%")
-                                return percentage
+            # Сравниваем значения
+            if chance_percentage is not None and yes_price_percentage is not None:
+                if abs(chance_percentage - yes_price_percentage) <= 2:  # Допускаем разницу в 2%
+                    logger.info(f"✅ Значения совпадают: {chance_percentage}% = {yes_price_percentage}%")
+                    return chance_percentage
+                else:
+                    logger.warning(f"⚠️ Значения не совпадают: chance={chance_percentage}%, price={yes_price_percentage}%")
+                    # Возвращаем значение из цены Yes, так как оно более точное
+                    logger.info(f"✅ Используем значение из цены Yes: {yes_price_percentage}%")
+                    return yes_price_percentage
+            elif yes_price_percentage is not None:
+                logger.info(f"✅ Используем значение из цены Yes: {yes_price_percentage}%")
+                return yes_price_percentage
+            elif chance_percentage is not None:
+                logger.info(f"✅ Используем значение из chance: {chance_percentage}%")
+                return chance_percentage
+            
+            # Если не нашли ни одного, ищем просто процент
+            percentage_elements = await self.page.query_selector_all('div:has-text("%"), span:has-text("%")')
+            
+            for element in percentage_elements:
+                text = await element.text_content()
+                if text:
+                    logger.info(f"📄 Найден элемент с %: '{text.strip()}'")
+                    
+                    # Ищем просто процент (только 1-2 цифры)
+                    percentage_match = re.search(r'(\d{1,2}(?:\.\d+)?)\s*%', text)
+                    if percentage_match:
+                        percentage = float(percentage_match.group(1))
+                        if 0 <= percentage <= 100:
+                            logger.info(f"✅ Найден процент Yes: {percentage}%")
+                            return percentage
             
             return 0
             
