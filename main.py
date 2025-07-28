@@ -750,6 +750,77 @@ class MarketAnalysisBot:
             logger.info(f"Stopping analysis for RESTORED market {slug} due to bot shutdown")
             self.stop_market_analysis(market_id, "закрыт")
 
+    def add_market_by_slug(self, slug):
+        """Добавление рынка в аналитическую базу по слаг для анализа"""
+        try:
+            logger.info(f"🔍 Добавление рынка по слаг: {slug}")
+            
+            # Проверяем, не анализируется ли уже этот рынок
+            existing_market = self.db_manager.get_market_by_slug(slug)
+            if existing_market:
+                logger.warning(f"Рынок {slug} уже существует в аналитической базе")
+                return False
+            
+            # Получаем данные рынка через MarketAnalyzer
+            analysis_data = self.market_analyzer.get_market_data(slug)
+            
+            if not analysis_data:
+                logger.error(f"Не удалось получить данные для рынка {slug}")
+                return False
+            
+            # Создаем базовые данные рынка
+            market_data = {
+                'id': None,  # Будет сгенерирован автоматически
+                'question': f"Market: {slug}",  # Временное название
+                'created_at': datetime.now(timezone.utc),
+                'active': True,
+                'enable_order_book': True,
+                'slug': slug,
+                'market_exists': analysis_data.get('market_exists', True),
+                'is_boolean': analysis_data.get('is_boolean', True),
+                'yes_percentage': analysis_data.get('yes_percentage', 0),
+                'volume': analysis_data.get('volume', 'New'),
+                'contract_address': analysis_data.get('contract_address', ''),
+                'status': 'в работе'
+            }
+            
+            # Добавляем рынок в аналитическую базу
+            analytic_market_id = self.db_manager.insert_market_to_analytic(market_data)
+            
+            if analytic_market_id:
+                logger.info(f"✅ Рынок {slug} успешно добавлен в аналитическую базу (ID: {analytic_market_id})")
+                
+                # Добавляем в активные рынки
+                self.active_markets[analytic_market_id] = {
+                    'start_time': datetime.now(timezone.utc),
+                    'last_log': datetime.now(timezone.utc),
+                    'slug': slug,
+                    'question': market_data['question']
+                }
+                
+                # Логируем новый рынок
+                self.telegram_logger.log_new_market(market_data)
+                
+                # Запускаем анализ в отдельном потоке
+                analysis_thread = threading.Thread(
+                    target=self.analyze_market_continuously,
+                    args=(analytic_market_id, slug)
+                )
+                analysis_thread.daemon = True
+                analysis_thread.start()
+                
+                logger.info(f"🚀 Анализ рынка {slug} запущен")
+                return True
+            else:
+                logger.error(f"❌ Не удалось добавить рынок {slug} в аналитическую базу")
+                return False
+                
+        except Exception as e:
+            error_msg = f"Ошибка добавления рынка {slug}: {e}"
+            logger.error(error_msg)
+            self.telegram_logger.log_error(error_msg)
+            return False
+
 def main():
     """Главная функция"""
     bot = MarketAnalysisBot()

@@ -44,6 +44,18 @@ class MarketAnalyzer:
         except Exception as e:
             logger.error(f"Ошибка синхронного закрытия браузера: {e}")
     
+    def init_browser_sync(self):
+        """Синхронная инициализация браузера"""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(self.init_browser())
+            finally:
+                loop.close()
+        except Exception as e:
+            logger.error(f"Ошибка синхронной инициализации браузера: {e}")
+    
     def get_market_data(self, slug):
         """Синхронная обертка для анализа рынка"""
         try:
