@@ -451,8 +451,8 @@ class MarketAnalysisBot:
                         logger.info(f"🔄 Восстановлен мониторинг для рынка: {slug}")
                         
                     else:
-                        logger.warning(f"⚠️ Не удалось получить данные для восстановленного рынка {slug} - закрываем")
-                        self.db_manager.update_market_analysis(market_id, {'status': 'закрыт (ошибка анализа)'})
+                        logger.warning(f"⚠️ Не удалось получить данные для восстановленного рынка {slug}")
+                        continue
                         
                 except Exception as e:
                     logger.error(f"❌ Ошибка восстановления рынка {market.get('slug', 'unknown')}: {e}")
@@ -461,8 +461,9 @@ class MarketAnalysisBot:
             logger.info(f"✅ Восстановление завершено. Активных рынков: {len(self.active_markets)}")
             
         except Exception as e:
-            logger.error(f"❌ Ошибка восстановления рынков в работе: {e}")
-            self.telegram_logger.log_error(f"Ошибка восстановления рынков: {e}")
+            error_msg = f"Ошибка восстановления рынков: {e}"
+            logger.error(error_msg)
+            self.telegram_logger.log_error(error_msg)
 
     def check_recently_closed_markets(self):
         """Проверка недавно закрытых рынков на предмет ошибочного закрытия"""
