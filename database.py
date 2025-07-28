@@ -7,6 +7,14 @@ import logging
 # Импортируем настройку логирования
 import logging_config
 
+def convert_naive_to_aware(dt):
+    """Конвертирует naive datetime в timezone-aware UTC datetime"""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
 logger = logging.getLogger(__name__)
 
 class DatabaseManager:
@@ -227,6 +235,14 @@ class DatabaseManager:
             
             market = cursor.fetchone()
             cursor.close()
+            
+            # Конвертируем naive datetime в timezone-aware
+            if market:
+                if 'created_at_analytic' in market:
+                    market['created_at_analytic'] = convert_naive_to_aware(market['created_at_analytic'])
+                if 'last_updated' in market:
+                    market['last_updated'] = convert_naive_to_aware(market['last_updated'])
+            
             return market
         except Exception as e:
             logger.error(f"Error getting market by slug: {e}")
@@ -246,6 +262,14 @@ class DatabaseManager:
             
             markets = cursor.fetchall()
             cursor.close()
+            
+            # Конвертируем naive datetime в timezone-aware
+            for market in markets:
+                if 'created_at_analytic' in market:
+                    market['created_at_analytic'] = convert_naive_to_aware(market['created_at_analytic'])
+                if 'last_updated' in market:
+                    market['last_updated'] = convert_naive_to_aware(market['last_updated'])
+            
             return markets
         except Exception as e:
             logger.error(f"Error getting active markets: {e}")
@@ -259,7 +283,7 @@ class DatabaseManager:
                     return []
             
             # Вычисляем время, до которого рынки должны быть активны (от времени создания)
-            cutoff_time = datetime.now() - timedelta(minutes=analysis_time_minutes)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=analysis_time_minutes)
             
             cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("""
@@ -270,6 +294,13 @@ class DatabaseManager:
             
             markets = cursor.fetchall()
             cursor.close()
+            
+            # Конвертируем naive datetime в timezone-aware
+            for market in markets:
+                if 'created_at_analytic' in market:
+                    market['created_at_analytic'] = convert_naive_to_aware(market['created_at_analytic'])
+                if 'last_updated' in market:
+                    market['last_updated'] = convert_naive_to_aware(market['last_updated'])
             
             logger.info(f"Found {len(markets)} markets that exceeded analysis time ({analysis_time_minutes} minutes)")
             return markets
@@ -293,6 +324,14 @@ class DatabaseManager:
             
             markets = cursor.fetchall()
             cursor.close()
+            
+            # Конвертируем naive datetime в timezone-aware
+            for market in markets:
+                if 'created_at_analytic' in market:
+                    market['created_at_analytic'] = convert_naive_to_aware(market['created_at_analytic'])
+                if 'last_updated' in market:
+                    market['last_updated'] = convert_naive_to_aware(market['last_updated'])
+            
             return markets
         except Exception as e:
             logger.error(f"Error getting markets in progress: {e}")
@@ -337,6 +376,14 @@ class DatabaseManager:
             
             markets = cursor.fetchall()
             cursor.close()
+            
+            # Конвертируем naive datetime в timezone-aware
+            for market in markets:
+                if 'created_at_analytic' in market:
+                    market['created_at_analytic'] = convert_naive_to_aware(market['created_at_analytic'])
+                if 'last_updated' in market:
+                    market['last_updated'] = convert_naive_to_aware(market['last_updated'])
+            
             logger.info(f"Retrieved {len(markets)} recently closed markets")
             return markets
         except Exception as e:
@@ -360,6 +407,14 @@ class DatabaseManager:
             
             markets = cursor.fetchall()
             cursor.close()
+            
+            # Конвертируем naive datetime в timezone-aware
+            for market in markets:
+                if 'created_at_analytic' in market:
+                    market['created_at_analytic'] = convert_naive_to_aware(market['created_at_analytic'])
+                if 'last_updated' in market:
+                    market['last_updated'] = convert_naive_to_aware(market['last_updated'])
+            
             logger.info(f"Retrieved {len(markets)} last markets for verification")
             return markets
         except Exception as e:
