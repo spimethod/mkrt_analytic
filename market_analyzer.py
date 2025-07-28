@@ -58,6 +58,10 @@ class MarketAnalyzer:
             logger.error(f"Ошибка синхронного анализа рынка {slug}: {e}")
             return None
     
+    def analyze_market(self, slug):
+        """Синхронная обертка для анализа рынка (для совместимости)"""
+        return self.get_market_data(slug)
+    
     async def analyze_market(self, slug):
         """Анализ рынка"""
         try:
