@@ -5,7 +5,7 @@ import logging
 import sys
 from datetime import datetime, timedelta, timezone
 from database import DatabaseManager
-from ocr_screenshot_analyzer import OCRScreenshotAnalyzer
+from market_analyzer import MarketAnalyzer
 from telegram_bot import TelegramLogger
 from config import ANALYSIS_TIME_MINUTES, MAX_RETRIES, RETRY_DELAY_SECONDS, LOGGING_INTERVAL_MINUTES, PING_INTERVAL_MINUTES
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class MarketAnalysisBot:
     def __init__(self):
         self.db_manager = DatabaseManager()
-        self.market_analyzer = OCRScreenshotAnalyzer()
+        self.market_analyzer = MarketAnalyzer()
         self.telegram_logger = TelegramLogger()
         self.active_markets = {}  # {market_id: {'start_time': datetime, 'last_log': datetime}}
         self.running = False
@@ -73,7 +73,7 @@ class MarketAnalysisBot:
         except Exception as e:
             logger.error(f"Error closing Telegram HTTP client: {e}")
         
-        self.market_analyzer.close_driver()
+        self.market_analyzer.close_driver_sync()
         self.db_manager.close_connections()
     
     def run_scheduler(self):
