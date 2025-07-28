@@ -3,7 +3,7 @@ import threading
 import schedule
 import logging
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from database import DatabaseManager
 from ocr_screenshot_analyzer import OCRScreenshotAnalyzer
 from telegram_bot import TelegramLogger
@@ -32,7 +32,7 @@ class MarketAnalysisBot:
             self.running = True
             
             # Устанавливаем время запуска бота
-            self.bot_start_time = datetime.now()
+            self.bot_start_time = datetime.now(timezone.utc)
             logger.info(f"📅 Время запуска бота: {self.bot_start_time}")
             
             # Закрываем истекшие рынки при запуске
@@ -170,8 +170,8 @@ class MarketAnalysisBot:
                         if analytic_market_id:
                             # Начинаем анализ рынка
                             self.active_markets[market_id] = {
-                                'start_time': datetime.now(),
-                                'last_log': datetime.now(),
+                                'start_time': datetime.now(timezone.utc),
+                                'last_log': datetime.now(timezone.utc),
                                 'slug': market['slug'],
                                 'question': market['question']
                             }
@@ -201,13 +201,13 @@ class MarketAnalysisBot:
     
     def analyze_market_continuously(self, market_id, slug):
         """Непрерывный анализ рынка в течение заданного времени"""
-        start_time = datetime.now()
+        start_time = datetime.now(timezone.utc)
         end_time = start_time + timedelta(minutes=ANALYSIS_TIME_MINUTES)
         retry_count = 0
         
         logger.info(f"Starting continuous analysis for market {slug} for {ANALYSIS_TIME_MINUTES} minutes")
         
-        while datetime.now() < end_time and self.running:
+        while datetime.now(timezone.utc) < end_time and self.running:
             try:
                 # Анализируем рынок
                 analysis_data = self.market_analyzer.get_market_data(slug)
@@ -299,7 +299,7 @@ class MarketAnalysisBot:
                 if market['id'] in self.active_markets:
                     # Проверяем, не истекло ли время анализа
                     start_time = self.active_markets[market['id']]['start_time']
-                    if datetime.now() - start_time > timedelta(minutes=ANALYSIS_TIME_MINUTES):
+                    if datetime.now(timezone.utc) - start_time > timedelta(minutes=ANALYSIS_TIME_MINUTES):
                         self.stop_market_analysis(market['id'], "закрыт")
         
         except Exception as e:
@@ -316,10 +316,10 @@ class MarketAnalysisBot:
                 if market['id'] in self.active_markets:
                     # Проверяем, прошло ли 10 минут с последнего логирования
                     last_log = self.active_markets[market['id']]['last_log']
-                    if datetime.now() - last_log > timedelta(minutes=LOGGING_INTERVAL_MINUTES):
+                    if datetime.now(timezone.utc) - last_log > timedelta(minutes=LOGGING_INTERVAL_MINUTES):
                         # Логируем данные рынка
                         self.telegram_logger.log_market_data(market)
-                        self.active_markets[market['id']]['last_log'] = datetime.now()
+                        self.active_markets[market['id']]['last_log'] = datetime.now(timezone.utc)
         
         except Exception as e:
             error_msg = f"Error logging market summaries: {e}"
@@ -361,7 +361,7 @@ class MarketAnalysisBot:
             
             logger.info(f"📊 Найдено {len(in_progress_markets)} рынков в работе")
             
-            current_time = datetime.now()
+            current_time = datetime.now(timezone.utc)
             logger.info(f"🕐 Текущее время: {current_time}")
             logger.info(f"⏰ Время анализа (минут): {ANALYSIS_TIME_MINUTES}")
             
@@ -475,7 +475,7 @@ class MarketAnalysisBot:
             
             logger.info(f"📊 Найдено {len(recently_closed)} недавно закрытых рынков")
             
-            current_time = datetime.now()
+            current_time = datetime.now(timezone.utc)
             
             for market in recently_closed:
                 try:
@@ -526,7 +526,7 @@ class MarketAnalysisBot:
                                 logger.info(f"✅ Восстанавливаем ошибочно закрытый рынок {slug}, осталось {remaining_time_from_created:.1f} минут")
                                 
                                 # Проверяем, не истекло ли время анализа
-                                current_time = datetime.now()
+                                current_time = datetime.now(timezone.utc)
                                 analysis_end_time = created_at_analytic + timedelta(minutes=ANALYSIS_TIME_MINUTES)
                                 remaining_time = (analysis_end_time - current_time).total_seconds() / 60
                                 
@@ -585,7 +585,7 @@ class MarketAnalysisBot:
             
             logger.info(f"📊 Найдено {len(last_3_markets)} последних рынков для проверки")
             
-            current_time = datetime.now()
+            current_time = datetime.now(timezone.utc)
             
             for i, market in enumerate(last_3_markets, 1):
                 try:
@@ -635,7 +635,7 @@ class MarketAnalysisBot:
                                 logger.info(f"✅ ВОССТАНАВЛИВАЕМ ОШИБОЧНО ЗАКРЫТЫЙ РЫНОК #{i}: {slug}")
                                 
                                 # Проверяем, не истекло ли время анализа
-                                current_time = datetime.now()
+                                current_time = datetime.now(timezone.utc)
                                 analysis_end_time = created_at_analytic + timedelta(minutes=ANALYSIS_TIME_MINUTES)
                                 remaining_time = (analysis_end_time - current_time).total_seconds() / 60
                                 
@@ -696,7 +696,7 @@ class MarketAnalysisBot:
         
         logger.info(f"Starting continuous analysis for RESTORED market {slug} until {end_time}")
         
-        while datetime.now() < end_time and self.running:
+        while datetime.now(timezone.utc) < end_time and self.running:
             try:
                 # Анализируем рынок
                 analysis_data = self.market_analyzer.get_market_data(slug)
@@ -743,7 +743,7 @@ class MarketAnalysisBot:
                     time.sleep(RETRY_DELAY_SECONDS)
         
         # Завершаем анализ рынка только если время действительно истекло
-        if datetime.now() >= end_time:
+        if datetime.now(timezone.utc) >= end_time:
             logger.info(f"Analysis time expired for RESTORED market {slug}")
             self.stop_market_analysis(market_id, "закрыт (время истекло)")
         elif market_id in self.active_markets:

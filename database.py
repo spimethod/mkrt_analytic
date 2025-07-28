@@ -1,6 +1,6 @@
 import psycopg2
 import psycopg2.extras
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from config import POLYMARKET_DB_CONFIG, ANALYTIC_DB_CONFIG
 import logging
 
@@ -112,6 +112,7 @@ class DatabaseManager:
             cursor = self.conn.cursor()
             
             # Подготавливаем данные для вставки
+            current_time = datetime.now(timezone.utc)  # Используем UTC время для точности
             insert_data = (
                 market_data['id'],
                 market_data['question'],
@@ -125,7 +126,8 @@ class DatabaseManager:
                 market_data.get('volume', 'New'),        # Volume или "New"
                 market_data.get('contract_address', ''),
                 market_data.get('status', 'в работе'),
-                datetime.now()
+                current_time,  # last_updated
+                current_time   # created_at_analytic
             )
             
             logger.info(f"📊 Данные для вставки: {insert_data}")
@@ -133,8 +135,8 @@ class DatabaseManager:
             cursor.execute("""
                 INSERT INTO mkrt_analytic 
                 (polymarket_id, question, created_at, active, enable_order_book, slug, 
-                 market_exists, is_boolean, yes_percentage, volume, contract_address, status, last_updated)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 market_exists, is_boolean, yes_percentage, volume, contract_address, status, last_updated, created_at_analytic)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (polymarket_id) DO UPDATE SET
                 last_updated = EXCLUDED.last_updated
                 RETURNING id
@@ -173,6 +175,7 @@ class DatabaseManager:
             cursor = self.conn.cursor()
             
             # Подготавливаем данные для обновления
+            current_time = datetime.now(timezone.utc)  # Используем UTC время для точности
             update_data = (
                 analysis_data.get('market_exists', True),  # По умолчанию True
                 analysis_data.get('is_boolean', True),     # По умолчанию True
@@ -180,7 +183,7 @@ class DatabaseManager:
                 analysis_data.get('volume', 'New'),        # Volume или "New"
                 analysis_data.get('contract_address', ''),
                 analysis_data.get('status', 'в работе'),
-                datetime.now(),
+                current_time,
                 market_id
             )
             
