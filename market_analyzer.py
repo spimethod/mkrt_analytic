@@ -109,6 +109,13 @@ class MarketAnalyzer:
                 'status': 'в работе'
             }
             
+            # Проверяем категорию рынка
+            category_check = await self.check_market_category()
+            if not category_check['is_boolean']:
+                data['is_boolean'] = False
+                data['reason'] = category_check['reason']
+                return data
+            
             # Извлекаем процент Yes
             yes_percentage = await self.extract_yes_percentage()
             if yes_percentage:
@@ -130,6 +137,39 @@ class MarketAnalyzer:
         except Exception as e:
             logger.error(f"Ошибка извлечения данных: {e}")
             return None
+    
+    async def check_market_category(self):
+        """Проверка категории рынка"""
+        try:
+            # Ищем элементы категорий
+            category_elements = await self.page.query_selector_all('[class*="category"], [class*="tag"], span:has-text("Sports"), span:has-text("Crypto"), span:has-text("Politics"), span:has-text("Tech"), span:has-text("Culture"), span:has-text("World"), span:has-text("Economy")')
+            
+            for element in category_elements:
+                text = await element.text_content()
+                if text:
+                    text_lower = text.lower().strip()
+                    
+                    # Проверяем категории, которые мы не анализируем
+                    if any(cat in text_lower for cat in ['sports', 'crypto', 'cryptocurrency', 'bitcoin', 'ethereum']):
+                        logger.info(f"⚠️ Рынок относится к категории: {text}")
+                        return {
+                            'is_boolean': False,
+                            'reason': f'category_{text_lower}'
+                        }
+            
+            # Если не нашли исключающие категории, считаем булевым
+            return {
+                'is_boolean': True,
+                'reason': 'boolean'
+            }
+            
+        except Exception as e:
+            logger.error(f"Ошибка проверки категории: {e}")
+            # В случае ошибки считаем булевым
+            return {
+                'is_boolean': True,
+                'reason': 'boolean'
+            }
     
     async def extract_yes_percentage(self):
         """Извлечение процента Yes из '67% chance' и 'Yes 67¢'"""
