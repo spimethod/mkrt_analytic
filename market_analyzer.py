@@ -120,29 +120,46 @@ class MarketAnalyzer:
             return None
     
     async def extract_yes_percentage(self):
-        """Извлечение процента Yes"""
+        """Извлечение процента Yes из '67% chance'"""
         try:
-            # Ищем элементы с ценами Yes
-            yes_elements = await self.page.query_selector_all('button:has-text("Yes")')
+            # Ищем элемент с процентом chance - более широкий поиск
+            selectors = [
+                '[class*="chance"]',
+                '[class*="percentage"]', 
+                '[class*="probability"]',
+                'div:has-text("%")',
+                'span:has-text("%")',
+                'p:has-text("%")',
+                '[class*="price"]',
+                '[class*="value"]'
+            ]
             
-            for element in yes_elements:
-                text = await element.text_content()
-                if text:
-                    # Ищем процент в тексте
-                    percentage_match = re.search(r'(\d+(?:\.\d+)?)\s*%', text)
-                    if percentage_match:
-                        percentage = float(percentage_match.group(1))
-                        logger.info(f"Найден процент Yes: {percentage}%")
-                        return percentage
-                    
-                    # Ищем центы
-                    cents_match = re.search(r'(\d+(?:\.\d+)?)\s*¢', text)
-                    if cents_match:
-                        cents = float(cents_match.group(1))
-                        # Конвертируем центы в проценты
-                        percentage = cents
-                        logger.info(f"Найдены центы Yes: {cents}¢ -> {percentage}%")
-                        return percentage
+            for selector in selectors:
+                elements = await self.page.query_selector_all(selector)
+                logger.info(f"🔍 Поиск по селектору '{selector}': найдено {len(elements)} элементов")
+                
+                for i, element in enumerate(elements):
+                    text = await element.text_content()
+                    if text:
+                        logger.info(f"📄 Элемент {i+1}: '{text.strip()}'")
+                        
+                        # Ищем процент в формате "67% chance"
+                        percentage_match = re.search(r'(\d{1,2}(?:\.\d+)?)\s*%\s*chance', text, re.IGNORECASE)
+                        if percentage_match:
+                            percentage = float(percentage_match.group(1))
+                            # Проверяем, что это разумное значение (между 0 и 100)
+                            if 0 <= percentage <= 100:
+                                logger.info(f"✅ Найден процент Yes: {percentage}% (из chance)")
+                                return percentage
+                        
+                        # Ищем просто процент (только 1-2 цифры)
+                        percentage_match = re.search(r'(\d{1,2}(?:\.\d+)?)\s*%', text)
+                        if percentage_match:
+                            percentage = float(percentage_match.group(1))
+                            # Проверяем, что это разумное значение (между 0 и 100)
+                            if 0 <= percentage <= 100:
+                                logger.info(f"✅ Найден процент Yes: {percentage}%")
+                                return percentage
             
             return 0
             
@@ -151,20 +168,40 @@ class MarketAnalyzer:
             return 0
     
     async def extract_volume(self):
-        """Извлечение Volume"""
+        """Извлечение Volume из '$264,156 Vol.'"""
         try:
-            # Ищем элементы с Volume
-            volume_elements = await self.page.query_selector_all('[class*="volume"], [class*="Volume"]')
+            # Ищем элемент с Volume - более широкий поиск
+            selectors = [
+                '[class*="volume"]',
+                '[class*="Vol"]',
+                '[class*="Volume"]',
+                'div:has-text("Vol")',
+                'span:has-text("Vol")',
+                'p:has-text("Vol")',
+                '[class*="trading"]',
+                '[class*="market"]'
+            ]
             
-            for element in volume_elements:
-                text = await element.text_content()
-                if text:
-                    # Ищем сумму в долларах
-                    dollar_match = re.search(r'\$([\d,]+(?:\.\d{2})?)', text)
-                    if dollar_match:
-                        volume = dollar_match.group(1).replace(',', '')
-                        logger.info(f"Найден Volume: ${volume}")
-                        return f"${float(volume):,.2f}"
+            for selector in selectors:
+                elements = await self.page.query_selector_all(selector)
+                for element in elements:
+                    text = await element.text_content()
+                    if text:
+                        # Ищем сумму в долларах с "Vol"
+                        volume_match = re.search(r'\$([\d,]+(?:\.\d{2})?)\s*Vol', text, re.IGNORECASE)
+                        if volume_match:
+                            volume = volume_match.group(1).replace(',', '')
+                            logger.info(f"Найден Volume: ${volume} Vol")
+                            return f"${float(volume):,.2f}"
+                        
+                        # Ищем просто сумму в долларах
+                        dollar_match = re.search(r'\$([\d,]+(?:\.\d{2})?)', text)
+                        if dollar_match:
+                            volume = dollar_match.group(1).replace(',', '')
+                            # Проверяем, что это большая сумма (не цена)
+                            if float(volume) > 1000:  # Исключаем цены
+                                logger.info(f"Найден Volume: ${volume}")
+                                return f"${float(volume):,.2f}"
             
             return 'New'
             
@@ -173,20 +210,59 @@ class MarketAnalyzer:
             return 'New'
     
     async def extract_contract(self):
-        """Извлечение адреса контракта"""
+        """Извлечение контракта через Show more -> левый контракт"""
         try:
-            # Ищем контракт на странице
-            contract_elements = await self.page.query_selector_all('code, pre, [class*="contract"], [class*="address"]')
+            # Ищем кнопку "Show more"
+            show_more_buttons = await self.page.query_selector_all('button:has-text("Show more")')
             
-            for element in contract_elements:
-                text = await element.text_content()
-                if text:
-                    # Ищем адрес контракта
-                    contract_match = re.search(r'0x[a-fA-F0-9]{40}', text)
-                    if contract_match:
-                        contract = contract_match.group()
-                        logger.info(f"Найден контракт: {contract}")
-                        return contract
+            for button in show_more_buttons:
+                try:
+                    # Кликаем на Show more
+                    await button.click()
+                    await self.page.wait_for_timeout(1000)
+                    
+                    # Ищем левый контракт (первый контракт в списке)
+                    contract_elements = await self.page.query_selector_all('[class*="contract"], [class*="address"], a[href*="0x"]')
+                    
+                    for element in contract_elements:
+                        # Получаем href или текст
+                        href = await element.get_attribute('href')
+                        text = await element.text_content()
+                        
+                        if href and '0x' in href:
+                            # Извлекаем адрес из URL
+                            contract_match = re.search(r'0x[a-fA-F0-9]{40}', href)
+                            if contract_match:
+                                contract = contract_match.group()
+                                logger.info(f"Найден контракт из href: {contract}")
+                                return contract
+                        
+                        if text and '0x' in text:
+                            # Извлекаем адрес из текста
+                            contract_match = re.search(r'0x[a-fA-F0-9]{40}', text)
+                            if contract_match:
+                                contract = contract_match.group()
+                                logger.info(f"Найден контракт из текста: {contract}")
+                                return contract
+                    
+                    # Если не нашли, попробуем кликнуть на первый контракт
+                    contract_links = await self.page.query_selector_all('a[href*="0x"], [class*="contract"]')
+                    if contract_links:
+                        await contract_links[0].click()
+                        await self.page.wait_for_timeout(2000)
+                        
+                        # Получаем URL после клика
+                        current_url = self.page.url
+                        if '0x' in current_url:
+                            contract_match = re.search(r'0x[a-fA-F0-9]{40}', current_url)
+                            if contract_match:
+                                contract = contract_match.group()
+                                logger.info(f"Найден контракт из URL: {contract}")
+                                return contract
+                
+                except Exception as e:
+                    logger.warning(f"Ошибка при обработке Show more: {e}")
+                    continue
             
             return ''
             
