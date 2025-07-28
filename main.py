@@ -230,8 +230,7 @@ class MarketAnalysisBot:
                         'market_exists': analysis_data.get('market_exists', False),
                         'is_boolean': analysis_data.get('is_boolean', False),
                         'yes_percentage': analysis_data.get('yes_percentage', 0),
-                        'yes_order_book_total': 0,  # Не используется в OCR
-                        'no_order_book_total': 0,   # Не используется в OCR
+                        'volume': analysis_data.get('volume', 'New'),
                         'contract_address': analysis_data.get('contract_address', ''),
                         'status': 'в работе'
                     }
@@ -799,7 +798,10 @@ class MarketAnalysisBot:
                 }
                 
                 # Логируем новый рынок
-                self.telegram_logger.log_new_market(market_data)
+                self.telegram_logger.log_new_market({
+                    'slug': slug,
+                    'question': market_data['question']
+                })
                 
                 # Запускаем анализ в отдельном потоке
                 analysis_thread = threading.Thread(
