@@ -141,8 +141,6 @@ class MarketAnalyzer:
             for element in chance_elements:
                 text = await element.text_content()
                 if text:
-                    logger.info(f"📄 Найден элемент с chance: '{text.strip()}'")
-                    
                     # Ищем процент в формате "67% chance"
                     percentage_match = re.search(r'(\d{1,2}(?:\.\d+)?)\s*%\s*chance', text, re.IGNORECASE)
                     if percentage_match:
@@ -159,8 +157,6 @@ class MarketAnalyzer:
             for element in yes_price_elements:
                 text = await element.text_content()
                 if text:
-                    logger.info(f"📄 Найден элемент с Yes: '{text.strip()}'")
-                    
                     # Ищем цену в формате "Yes 67¢"
                     price_match = re.search(r'Yes\s*(\d{1,2}(?:\.\d+)?)\s*¢', text)
                     if price_match:
@@ -240,8 +236,7 @@ class MarketAnalyzer:
                         dollar_match = re.search(r'\$([\d,]+(?:\.\d{2})?)', text)
                         if dollar_match:
                             volume = dollar_match.group(1).replace(',', '')
-                            # Проверяем, что это большая сумма (не цена)
-                            if float(volume) > 1000:  # Исключаем цены
+                            if float(volume) > 1000: # Filter out small dollar values that might be prices
                                 logger.info(f"Найден Volume: ${volume}")
                                 return f"${float(volume):,.2f}"
             
@@ -267,12 +262,10 @@ class MarketAnalyzer:
                     contract_elements = await self.page.query_selector_all('[class*="contract"], [class*="address"], a[href*="0x"]')
                     
                     for element in contract_elements:
-                        # Получаем href или текст
                         href = await element.get_attribute('href')
                         text = await element.text_content()
                         
                         if href and '0x' in href:
-                            # Извлекаем адрес из URL
                             contract_match = re.search(r'0x[a-fA-F0-9]{40}', href)
                             if contract_match:
                                 contract = contract_match.group()
@@ -280,7 +273,6 @@ class MarketAnalyzer:
                                 return contract
                         
                         if text and '0x' in text:
-                            # Извлекаем адрес из текста
                             contract_match = re.search(r'0x[a-fA-F0-9]{40}', text)
                             if contract_match:
                                 contract = contract_match.group()

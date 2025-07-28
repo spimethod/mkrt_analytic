@@ -236,7 +236,11 @@ class MarketAnalysisBot:
                     }
                     
                     # Обновляем данные в базе
-                    self.db_manager.update_market_analysis(market_id, db_data)
+                    success = self.db_manager.update_market_analysis(market_id, db_data)
+                    if success:
+                        logger.info(f"✅ Данные обновлены для {slug}: %Yes={db_data['yes_percentage']}%, Volume={db_data['volume']}, Contract={db_data['contract_address'][:10]}...")
+                    else:
+                        logger.warning(f"⚠️ Не удалось обновить данные для {slug}")
                     retry_count = 0  # Сбрасываем счетчик ошибок при успехе
                 else:
                     retry_count += 1
@@ -712,7 +716,11 @@ class MarketAnalysisBot:
                     }
                     
                     # Обновляем данные в базе
-                    self.db_manager.update_market_analysis(market_id, db_data)
+                    success = self.db_manager.update_market_analysis(market_id, db_data)
+                    if success:
+                        logger.info(f"✅ Данные обновлены для {slug}: %Yes={db_data['yes_percentage']}%, Volume={db_data['volume']}, Contract={db_data['contract_address'][:10]}...")
+                    else:
+                        logger.warning(f"⚠️ Не удалось обновить данные для {slug}")
                     retry_count = 0  # Сбрасываем счетчик ошибок при успехе
                 else:
                     retry_count += 1
