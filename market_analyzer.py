@@ -122,26 +122,72 @@ class MarketAnalyzer:
     async def extract_yes_percentage(self):
         """Извлечение процента Yes из '67% chance'"""
         try:
-            # Ищем элемент с процентом chance - более широкий поиск
-            selectors = [
-                '[class*="chance"]',
-                '[class*="percentage"]', 
-                '[class*="probability"]',
-                'div:has-text("%")',
-                'span:has-text("%")',
-                'p:has-text("%")',
-                '[class*="price"]',
-                '[class*="value"]'
+            # Ищем элемент, который содержит и Volume и chance в одном блоке
+            main_container = await self.page.query_selector('div:has-text("Vol"):has-text("chance")')
+            if main_container:
+                text = await main_container.text_content()
+                logger.info(f"📄 Найден основной контейнер: '{text.strip()}'")
+                
+                # Ищем процент в формате "67% chance"
+                percentage_match = re.search(r'(\d{1,2}(?:\.\d+)?)\s*%\s*chance', text, re.IGNORECASE)
+                if percentage_match:
+                    percentage = float(percentage_match.group(1))
+                    if 0 <= percentage <= 100:
+                        logger.info(f"✅ Найден процент Yes: {percentage}% (из основного контейнера)")
+                        return percentage
+            
+            # Ищем конкретные значения, которые видны на странице
+            specific_selectors = [
+                'div:has-text("16%")',
+                'span:has-text("16%")',
+                'div:has-text("67%")',
+                'span:has-text("67%")',
+                'div:has-text("85%")',
+                'span:has-text("85%")'
             ]
             
-            for selector in selectors:
+            for selector in specific_selectors:
                 elements = await self.page.query_selector_all(selector)
-                logger.info(f"🔍 Поиск по селектору '{selector}': найдено {len(elements)} элементов")
+                logger.info(f"🔍 Поиск по конкретному селектору '{selector}': найдено {len(elements)} элементов")
                 
                 for i, element in enumerate(elements):
                     text = await element.text_content()
                     if text:
-                        logger.info(f"📄 Элемент {i+1}: '{text.strip()}'")
+                        logger.info(f"📄 Конкретный элемент {i+1}: '{text.strip()}'")
+                        
+                        # Ищем процент в формате "67% chance"
+                        percentage_match = re.search(r'(\d{1,2}(?:\.\d+)?)\s*%\s*chance', text, re.IGNORECASE)
+                        if percentage_match:
+                            percentage = float(percentage_match.group(1))
+                            if 0 <= percentage <= 100:
+                                logger.info(f"✅ Найден процент Yes: {percentage}% (из конкретного элемента)")
+                                return percentage
+                        
+                        # Ищем просто процент (только 1-2 цифры)
+                        percentage_match = re.search(r'(\d{1,2}(?:\.\d+)?)\s*%', text)
+                        if percentage_match:
+                            percentage = float(percentage_match.group(1))
+                            if 0 <= percentage <= 100:
+                                logger.info(f"✅ Найден процент Yes: {percentage}%")
+                                return percentage
+            
+            # Если не нашли в основном контейнере, ищем в других местах
+            fallback_selectors = [
+                'div:has-text("chance")',
+                '[class*="chance"]',
+                '[class*="percentage"]',
+                'div:has-text("67%")',
+                'span:has-text("67%")'
+            ]
+            
+            for selector in fallback_selectors:
+                elements = await self.page.query_selector_all(selector)
+                logger.info(f"🔍 Поиск по fallback селектору '{selector}': найдено {len(elements)} элементов")
+                
+                for i, element in enumerate(elements):
+                    text = await element.text_content()
+                    if text:
+                        logger.info(f"📄 Fallback элемент {i+1}: '{text.strip()}'")
                         
                         # Ищем процент в формате "67% chance"
                         percentage_match = re.search(r'(\d{1,2}(?:\.\d+)?)\s*%\s*chance', text, re.IGNORECASE)
