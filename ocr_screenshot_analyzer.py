@@ -575,7 +575,10 @@ class OCRScreenshotAnalyzer:
                 r'yes\s*\$\d+',    # Yes $0.21
                 r'no\s*\$\d+',     # No $0.81
                 r'yes\s*\d+%',     # Yes 21%
-                r'no\s*\d+%'       # No 79%
+                r'no\s*\d+%',      # No 79%
+                r'\d+%',           # 38% (просто процент)
+                r'\d+¢',           # 50¢ (просто центы)
+                r'\$\d+',          # $0.50 (просто доллары)
             ]
             
             is_boolean_market = False
@@ -629,20 +632,25 @@ class OCRScreenshotAnalyzer:
             price_patterns = [
                 r'(\d+(?:\.\d+)?)\s*%',  # 50%
                 r'(\d+(?:\.\d+)?)\s*¢',   # 50¢
-                r'(\d+(?:\.\d+)?)\s*chance'  # 50% chance
+                r'(\d+(?:\.\d+)?)\s*chance',  # 50% chance
+                r'yes\s*(\d+(?:\.\d+)?)\s*%',  # Yes 50%
+                r'no\s*(\d+(?:\.\d+)?)\s*%',   # No 50%
+                r'(\d+(?:\.\d+)?)\s*%\s*yes',  # 50% Yes
+                r'(\d+(?:\.\d+)?)\s*%\s*no'    # 50% No
             ]
             
             yes_percentage = 0
             for pattern in price_patterns:
-                matches = re.findall(pattern, all_text)
+                matches = re.findall(pattern, all_text, re.IGNORECASE)
                 if matches:
                     try:
                         value = float(matches[0])
-                        if '¢' in pattern or 'chance' in pattern:
-                            # Конвертируем центы в проценты
+                        if '¢' in pattern:
+                            # Конвертируем центы в проценты (если нужно)
                             yes_percentage = value
                         else:
                             yes_percentage = value
+                        logger.info(f"✅ Найден процент Yes: {yes_percentage}% (паттерн: {pattern})")
                         break
                     except ValueError:
                         continue
@@ -694,18 +702,27 @@ class OCRScreenshotAnalyzer:
                         break
             
             parsed_data['volume'] = volume
+            logger.info(f"📊 Установлен Volume: {volume}")
             
             # Извлекаем контракт (если есть)
             contract_match = re.search(r'0x[a-fA-F0-9]{40}', all_text)
             if contract_match:
                 parsed_data['contract_address'] = contract_match.group()
+                logger.info(f"✅ Найден полный контракт: {contract_match.group()}")
             else:
                 # Ищем частичный адрес
                 partial_match = re.search(r'0x[a-fA-F0-9]{10,}', all_text)
                 if partial_match:
                     parsed_data['contract_address'] = partial_match.group()
+                    logger.info(f"⚠️ Найден частичный контракт: {partial_match.group()}")
                 else:
                     parsed_data['contract_address'] = ''
+                    logger.warning("❌ Контракт не найден в тексте")
+            
+            # Также проверяем контракт из extracted_data
+            if not parsed_data['contract_address'] and 'extracted_contract' in extracted_data:
+                parsed_data['contract_address'] = extracted_data['extracted_contract']
+                logger.info(f"✅ Используем контракт из extracted_data: {extracted_data['extracted_contract']}")
             
             # Добавляем флаг существования рынка
             parsed_data['market_exists'] = market_exists
