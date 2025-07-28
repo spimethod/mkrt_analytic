@@ -83,10 +83,10 @@ class MarketAnalyzer:
             
             # Переходим на страницу рынка
             url = f"https://polymarket.com/event/{slug}"
-            await self.page.goto(url, wait_until='networkidle')
+            await self.page.goto(url, wait_until='networkidle', timeout=60000)  # Увеличиваем таймаут до 60 секунд
             
             # Ждем загрузки контента
-            await self.page.wait_for_timeout(3000)
+            await self.page.wait_for_timeout(5000)  # Увеличиваем ожидание до 5 секунд
             
             # Извлекаем данные
             market_data = await self.extract_market_data()

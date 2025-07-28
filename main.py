@@ -413,8 +413,21 @@ class MarketAnalysisBot:
                     # Проверяем категорию рынка (Sports/Crypto)
                     logger.info(f"🔍 Проверяем категорию для восстановленного рынка: {slug}")
                     
-                    # Анализируем рынок для определения категории
-                    analysis_data = self.market_analyzer.get_market_data(slug)
+                    # Анализируем рынок для определения категории с повторными попытками
+                    analysis_data = None
+                    retry_count = 0
+                    max_retries = 3
+                    
+                    while retry_count < max_retries and not analysis_data:
+                        try:
+                            analysis_data = self.market_analyzer.get_market_data(slug)
+                            if analysis_data:
+                                break
+                        except Exception as e:
+                            retry_count += 1
+                            logger.warning(f"⚠️ Попытка {retry_count}/{max_retries} для {slug} не удалась: {e}")
+                            if retry_count < max_retries:
+                                time.sleep(5)  # Ждем 5 секунд перед повторной попыткой
                     
                     if analysis_data:
                         # Проверяем, является ли рынок булевым
