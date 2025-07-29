@@ -708,6 +708,10 @@ class MarketAnalysisBot:
             return
         
         created_at_analytic = market_data['created_at_analytic']
+        # Убеждаемся, что created_at_analytic timezone-aware
+        if created_at_analytic.tzinfo is None:
+            created_at_analytic = created_at_analytic.replace(tzinfo=timezone.utc)
+        
         end_time = created_at_analytic + timedelta(minutes=ANALYSIS_TIME_MINUTES)
         retry_count = 0
         
