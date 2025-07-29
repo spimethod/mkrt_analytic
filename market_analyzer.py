@@ -220,26 +220,21 @@ class MarketAnalyzer:
     def check_market_category_sync(self, slug):
         """Синхронная проверка категории рынка"""
         try:
-            # Инициализируем браузер, если он не инициализирован
-            if not self.page:
-                logger.info(f"🔄 Инициализируем браузер для проверки категории {slug}...")
-                if not self.init_browser_sync():
-                    logger.error(f"❌ Не удалось инициализировать браузер для {slug}")
-                    return {'is_boolean': True}  # По умолчанию разрешаем
-                logger.info(f"✅ Браузер инициализирован для {slug}")
+            # Простая проверка по slug - исключаем очевидные Sports/Crypto рынки
+            slug_lower = slug.lower()
+            sports_keywords = ['sports', 'football', 'basketball', 'soccer', 'tennis', 'baseball', 'hockey', 'golf', 'olympics', 'championship', 'league', 'cup', 'tournament']
+            crypto_keywords = ['crypto', 'bitcoin', 'ethereum', 'btc', 'eth', 'blockchain', 'defi', 'nft', 'token', 'coin']
             
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                result = loop.run_until_complete(asyncio.wait_for(self.check_market_category(), timeout=30))
-                return result
-            except asyncio.TimeoutError:
-                logger.error(f"⏰ Таймаут проверки категории для {slug} (30 секунд)")
-                return {'is_boolean': True}  # По умолчанию разрешаем
-            finally:
-                loop.close()
+            for keyword in sports_keywords + crypto_keywords:
+                if keyword in slug_lower:
+                    logger.info(f"⚠️ Рынок {slug} исключен по категории (содержит '{keyword}')")
+                    return {'is_boolean': False}
+            
+            # По умолчанию разрешаем все остальные рынки
+            return {'is_boolean': True}
+            
         except Exception as e:
-            logger.error(f"❌ Ошибка синхронной проверки категории для {slug}: {e}")
+            logger.error(f"❌ Ошибка проверки категории для {slug}: {e}")
             return {'is_boolean': True}  # По умолчанию разрешаем
     
     async def extract_yes_percentage(self):
