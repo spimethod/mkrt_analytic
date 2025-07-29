@@ -41,7 +41,7 @@ class DatabaseManager:
             
             cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("""
-                SELECT id, question, slug
+                SELECT id, question, slug, created_at
                 FROM markets
                 ORDER BY created_at DESC
                 LIMIT 10
@@ -249,7 +249,7 @@ class DatabaseManager:
             return None
     
     def get_active_markets(self):
-        """Получение всех активных рынков"""
+        """Получение активных рынков из аналитической таблицы"""
         try:
             if not self.conn:
                 if not self.connect():
@@ -257,23 +257,87 @@ class DatabaseManager:
             
             cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("""
-                SELECT * FROM mkrt_analytic WHERE status = 'в работе'
+                SELECT id, question, slug, created_at_analytic, status
+                FROM mkrt_analytic
+                WHERE status = 'в работе'
+                ORDER BY created_at_analytic DESC
             """)
             
             markets = cursor.fetchall()
             cursor.close()
-            
-            # Конвертируем naive datetime в timezone-aware
-            for market in markets:
-                if 'created_at_analytic' in market:
-                    market['created_at_analytic'] = convert_naive_to_aware(market['created_at_analytic'])
-                if 'last_updated' in market:
-                    market['last_updated'] = convert_naive_to_aware(market['last_updated'])
-            
             return markets
         except Exception as e:
             logger.error(f"Error getting active markets: {e}")
             return []
+    
+    def get_in_progress_markets(self):
+        """Получение рынков со статусом 'в работе'"""
+        try:
+            if not self.conn:
+                if not self.connect():
+                    return []
+            
+            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor.execute("""
+                SELECT id, question, slug, created_at_analytic, status
+                FROM mkrt_analytic
+                WHERE status = 'в работе'
+                ORDER BY created_at_analytic DESC
+            """)
+            
+            markets = cursor.fetchall()
+            cursor.close()
+            return markets
+        except Exception as e:
+            logger.error(f"Error getting in progress markets: {e}")
+            return []
+    
+    def get_recently_closed_markets(self):
+        """Получение недавно закрытых рынков (за последние 10 минут)"""
+        try:
+            if not self.conn:
+                if not self.connect():
+                    return []
+            
+            # Время 10 минут назад
+            ten_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=10)
+            
+            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor.execute("""
+                SELECT id, question, slug, created_at_analytic, status, last_updated
+                FROM mkrt_analytic
+                WHERE status = 'закрыт' 
+                AND last_updated > %s
+                ORDER BY last_updated DESC
+            """, (ten_minutes_ago,))
+            
+            markets = cursor.fetchall()
+            cursor.close()
+            return markets
+        except Exception as e:
+            logger.error(f"Error getting recently closed markets: {e}")
+            return []
+    
+    def get_market_info(self, market_id):
+        """Получение информации о рынке по ID"""
+        try:
+            if not self.conn:
+                if not self.connect():
+                    return None
+            
+            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor.execute("""
+                SELECT id, question, slug, created_at_analytic, status, last_updated
+                FROM mkrt_analytic
+                WHERE id = %s
+            """, (market_id,))
+            
+            market = cursor.fetchone()
+            cursor.close()
+            return market
+        except Exception as e:
+            logger.error(f"Error getting market info: {e}")
+            return None
     
     def get_markets_exceeded_analysis_time(self, analysis_time_minutes):
         """Получение рынков из mkrt_analytic, которые превысили время анализа"""
@@ -356,38 +420,6 @@ class DatabaseManager:
             return [market['slug'] for market in markets]
         except Exception as e:
             logger.error(f"Error getting closed markets slugs: {e}")
-            return []
-    
-    def get_recently_closed_markets(self, limit=10):
-        """Получение недавно закрытых рынков для проверки на ошибочное закрытие"""
-        try:
-            if not self.conn:
-                if not self.connect():
-                    return []
-            
-            cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            cursor.execute("""
-                SELECT id, slug, status, last_updated, created_at_analytic, question
-                FROM mkrt_analytic
-                WHERE status LIKE 'закрыт%%'
-                ORDER BY last_updated DESC
-                LIMIT %s
-            """, (limit,))
-            
-            markets = cursor.fetchall()
-            cursor.close()
-            
-            # Конвертируем naive datetime в timezone-aware
-            for market in markets:
-                if 'created_at_analytic' in market:
-                    market['created_at_analytic'] = convert_naive_to_aware(market['created_at_analytic'])
-                if 'last_updated' in market:
-                    market['last_updated'] = convert_naive_to_aware(market['last_updated'])
-            
-            logger.info(f"Retrieved {len(markets)} recently closed markets")
-            return markets
-        except Exception as e:
-            logger.error(f"Error getting recently closed markets: {e}")
             return []
     
     def get_last_3_markets_for_verification(self):

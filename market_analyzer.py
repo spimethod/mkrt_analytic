@@ -217,6 +217,23 @@ class MarketAnalyzer:
                 'reason': 'boolean'
             }
     
+    def check_market_category_sync(self, slug):
+        """Синхронная проверка категории рынка"""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(asyncio.wait_for(self.check_market_category(), timeout=30))
+                return result
+            except asyncio.TimeoutError:
+                logger.error(f"⏰ Таймаут проверки категории для {slug} (30 секунд)")
+                return {'is_boolean': True}  # По умолчанию разрешаем
+            finally:
+                loop.close()
+        except Exception as e:
+            logger.error(f"❌ Ошибка синхронной проверки категории для {slug}: {e}")
+            return {'is_boolean': True}  # По умолчанию разрешаем
+    
     async def extract_yes_percentage(self):
         """Извлечение процента Yes из '67% chance' и 'Yes 67¢'"""
         try:
