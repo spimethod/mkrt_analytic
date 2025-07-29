@@ -282,7 +282,7 @@ class MarketAnalysisBot:
         while datetime.now(timezone.utc) < end_time and self.running:
             try:
                 # Анализируем рынок
-                analysis_data = self.market_analyzer.analyze_market(slug)
+                analysis_data = self.market_analyzer.get_market_data(slug)
                 
                 if analysis_data:
                     # Обновляем данные в базе
@@ -350,7 +350,7 @@ class MarketAnalysisBot:
             while datetime.now(timezone.utc) < end_time and self.running:
                 try:
                     # Анализируем рынок
-                    analysis_data = self.market_analyzer.analyze_market(slug)
+                    analysis_data = self.market_analyzer.get_market_data(slug)
                     
                     if analysis_data:
                         # Обновляем данные в базе

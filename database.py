@@ -41,7 +41,7 @@ class DatabaseManager:
             
             cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("""
-                SELECT id, question, slug, created_at
+                SELECT id, question, slug, created_at, active
                 FROM markets
                 ORDER BY created_at DESC
                 LIMIT 10
@@ -63,7 +63,7 @@ class DatabaseManager:
             
             cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("""
-                SELECT id, question, slug
+                SELECT id, question, slug, created_at, active
                 FROM markets
                 WHERE created_at > %s
                 ORDER BY created_at DESC
