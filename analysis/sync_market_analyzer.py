@@ -176,14 +176,17 @@ class SyncMarketAnalyzer:
             
             # Извлекаем объем через RegEx
             volume_patterns = [
-                r'\$(\d+(?:,\d{3})*(?:\.\d+)?)\s*Vol',
+                r'\$(\d+(?:,\d{3})*(?:\.\d+)?)\s*Vol',  # $8,937 Vol
+                r'(\d+(?:,\d{3})*(?:\.\d+)?)\s*Vol',    # 8,937 Vol
                 r'Volume:\s*\$(\d+(?:,\d{3})*(?:\.\d+)?)',
                 r'(\d+(?:,\d{3})*(?:\.\d+)?)\s*USD',
-                r'\$(\d+(?:,\d{3})*(?:\.\d+)?)',
+                r'\$(\d+(?:,\d{3})*(?:\.\d+)?)',        # $8,937
                 r'Total Volume:\s*\$(\d+(?:,\d{3})*(?:\.\d+)?)',
                 r'Volume\s*\$(\d+(?:,\d{3})*(?:\.\d+)?)',
                 r'(\d+(?:,\d{3})*(?:\.\d+)?)\s*volume',
-                r'(\d+(?:,\d{3})*(?:\.\d+)?)\s*total'
+                r'(\d+(?:,\d{3})*(?:\.\d+)?)\s*total',
+                r'Vol\s*\$(\d+(?:,\d{3})*(?:\.\d+)?)',  # Vol $8,937
+                r'Vol\s*(\d+(?:,\d{3})*(?:\.\d+)?)'     # Vol 8,937
             ]
             
             for pattern in volume_patterns:
@@ -193,7 +196,12 @@ class SyncMarketAnalyzer:
                     try:
                         volume_float = float(volume)
                         if volume_float > 0:
-                            data['volume'] = f"${volume}"
+                            # Форматируем объем с запятыми для больших чисел
+                            if volume_float >= 1000:
+                                formatted_volume = f"${volume_float:,.0f}"
+                            else:
+                                formatted_volume = f"${volume}"
+                            data['volume'] = formatted_volume
                             logger.info(f"✅ Извлечен объем: {data['volume']}")
                             break
                     except ValueError:
