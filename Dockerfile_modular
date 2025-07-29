@@ -1,5 +1,5 @@
 # Используем Python 3.9
-# VERSION: 2.0 - Модульная архитектура
+# VERSION: 2.1 - Модульная архитектура
 FROM python:3.9-slim
 
 # Устанавливаем системные зависимости
@@ -35,15 +35,10 @@ RUN playwright install-deps
 # Копируем код приложения
 COPY . .
 
-# Принудительно удаляем старый main.py и переименовываем main_modular.py
-RUN ls -la && echo "=== BEFORE ===" && \
-    rm -f main.py && \
-    echo "=== AFTER REMOVE ===" && \
-    ls -la main*.py && \
-    mv main_modular.py main.py && \
-    echo "=== AFTER RENAME ===" && \
+# Проверяем что main.py правильный
+RUN echo "=== CHECKING MAIN.PY ===" && \
     ls -la main.py && \
-    echo "=== CHECK CONTENT ===" && \
+    echo "=== FIRST 10 LINES ===" && \
     head -10 main.py
 
 # Создаем пользователя для безопасности
