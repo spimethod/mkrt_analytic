@@ -32,17 +32,31 @@ class MarketAnalyzer:
         except Exception as e:
             logger.error(f"Ошибка закрытия браузера: {e}")
     
-    def close_driver_sync(self):
+    def close_driver(self):
         """Синхронное закрытие браузера"""
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                loop.run_until_complete(self.close_driver())
+                loop.run_until_complete(self.close_driver_async())
             finally:
                 loop.close()
         except Exception as e:
             logger.error(f"Ошибка синхронного закрытия браузера: {e}")
+    
+    def close_driver_sync(self):
+        """Синхронное закрытие браузера (для совместимости)"""
+        return self.close_driver()
+    
+    async def close_driver_async(self):
+        """Асинхронное закрытие браузера"""
+        try:
+            if self.browser:
+                await self.browser.close()
+            if hasattr(self, 'playwright'):
+                await self.playwright.stop()
+        except Exception as e:
+            logger.error(f"Ошибка закрытия браузера: {e}")
     
     def init_browser_sync(self):
         """Синхронная инициализация браузера"""
