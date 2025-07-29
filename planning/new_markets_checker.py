@@ -23,23 +23,24 @@ class NewMarketsChecker:
     def check_new_markets(self):
         """Проверка новых рынков каждые 30 секунд"""
         try:
-            markets = self.markets_reader.get_new_markets()
+            # Получаем только рынки, которые еще не анализировались
+            markets = self.markets_reader.get_new_markets_after_time(
+                datetime.now(timezone.utc) - timedelta(minutes=self.config.get_mkrt_analytic_time_min())
+            )
+            
+            if not markets:
+                # Нет новых рынков для анализа
+                logger.debug("ℹ️ Новых рынков для анализа не найдено")
+                return
+            
+            logger.info(f"🔍 Найдено {len(markets)} новых рынков для проверки")
             
             for market in markets:
                 # Проверяем, не анализируем ли уже этот рынок
                 if market['id'] not in self.bot.active_markets:
-                    # Проверяем время создания рынка
-                    market_created_at = market['created_at']
-                    if market_created_at.tzinfo is None:
-                        market_created_at = market_created_at.replace(tzinfo=timezone.utc)
-                    
-                    current_time = datetime.now(timezone.utc)
-                    time_diff_minutes = (current_time - market_created_at).total_seconds() / 60
-                    
-                    # Проверяем, не слишком ли старый рынок
-                    max_age_minutes = self.config.get_mkrt_analytic_time_min()
-                    if time_diff_minutes > max_age_minutes:
-                        logger.info(f"⚠️ Рынок {market['slug']} слишком старый ({time_diff_minutes:.1f} мин), пропускаем")
+                    # Проверяем, не анализировался ли уже этот рынок в прошлом
+                    if self.analytic_writer.market_exists_in_analytic(market['slug']):
+                        logger.debug(f"ℹ️ Рынок {market['slug']} уже анализировался ранее, пропускаем")
                         continue
                     
                     # Проверяем категорию рынка
