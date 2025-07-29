@@ -34,8 +34,8 @@ RUN playwright install-deps
 # Копируем код приложения
 COPY . .
 
-# Переименовываем main_modular.py в main.py для Railway
-RUN mv main_modular.py main.py
+# Удаляем старый main.py и переименовываем main_modular.py в main.py
+RUN rm -f main.py && mv main_modular.py main.py
 
 # Создаем пользователя для безопасности
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
