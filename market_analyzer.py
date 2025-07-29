@@ -50,28 +50,41 @@ class MarketAnalyzer:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                loop.run_until_complete(self.init_browser())
+                loop.run_until_complete(asyncio.wait_for(self.init_browser(), timeout=60))
+            except asyncio.TimeoutError:
+                logger.error(f"⏰ Таймаут инициализации браузера (60 секунд)")
+                return False
             finally:
                 loop.close()
         except Exception as e:
-            logger.error(f"Ошибка синхронной инициализации браузера: {e}")
+            logger.error(f"❌ Ошибка синхронной инициализации браузера: {e}")
+            return False
+        return True
     
     def get_market_data(self, slug):
         """Синхронная обертка для анализа рынка"""
         try:
             # Инициализируем браузер, если он не инициализирован
             if not self.page:
-                self.init_browser_sync()
+                logger.info(f"🔄 Инициализируем браузер для анализа {slug}...")
+                if not self.init_browser_sync():
+                    logger.error(f"❌ Не удалось инициализировать браузер для {slug}")
+                    return None
+                logger.info(f"✅ Браузер инициализирован для {slug}")
             
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                result = loop.run_until_complete(self.analyze_market(slug))
+                # Добавляем таймаут для анализа
+                result = loop.run_until_complete(asyncio.wait_for(self.analyze_market(slug), timeout=120))
                 return result
+            except asyncio.TimeoutError:
+                logger.error(f"⏰ Таймаут анализа рынка {slug} (120 секунд)")
+                return None
             finally:
                 loop.close()
         except Exception as e:
-            logger.error(f"Ошибка синхронного анализа рынка {slug}: {e}")
+            logger.error(f"❌ Ошибка синхронного анализа рынка {slug}: {e}")
             return None
     
     def analyze_market(self, slug):
@@ -87,18 +100,21 @@ class MarketAnalyzer:
             
             # Переходим на страницу рынка
             url = f"https://polymarket.com/event/{slug}"
+            logger.info(f"🌐 Переходим на страницу: {url}")
             await self.page.goto(url, wait_until='networkidle', timeout=60000)  # Увеличиваем таймаут до 60 секунд
             
             # Ждем загрузки контента
+            logger.info(f"⏳ Ждем загрузки контента...")
             await self.page.wait_for_timeout(5000)  # Увеличиваем ожидание до 5 секунд
             
             # Извлекаем данные
+            logger.info(f"🔍 Начинаем извлечение данных...")
             market_data = await self.extract_market_data()
             
             return market_data
             
         except Exception as e:
-            logger.error(f"Ошибка анализа рынка {slug}: {e}")
+            logger.error(f"❌ Ошибка анализа рынка {slug}: {e}")
             return None
     
     async def extract_market_data(self):
