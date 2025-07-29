@@ -25,8 +25,6 @@ class ConfigLoader:
             'password': pg_password
         }
         
-        logger.info(f"Database config: host={pg_host}, port={pg_port}, database={pg_database}, user={pg_user}")
-        
         # Telegram config
         self.telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN', '')
         self.telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID', '')

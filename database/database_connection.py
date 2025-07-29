@@ -13,8 +13,12 @@ class DatabaseConnection:
         """Подключение к базе данных"""
         try:
             db_config = self.config.get_database_config()
+            
+            # Добавляем SSL параметры для Railway
+            db_config['sslmode'] = 'require'
+            
             self.conn = psycopg2.connect(**db_config)
-            logger.info("Connected to database")
+            logger.info("Connected to database successfully")
             return True
         except Exception as e:
             logger.error(f"Failed to connect to database: {e}")
