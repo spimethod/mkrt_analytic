@@ -12,7 +12,7 @@ class ConfigLoader:
         # Railway PostgreSQL variables
         pg_host = os.getenv('PGHOST') or os.getenv('DB_HOST', 'localhost')
         pg_port = os.getenv('PGPORT') or os.getenv('DB_PORT', '5432')
-        pg_database = os.getenv('PGDATABASE') or os.getenv('DB_NAME', 'railway')
+        pg_database = os.getenv('PGDATABASE') or os.getenv('DB_NAME', 'markets')
         pg_user = os.getenv('PGUSER') or os.getenv('DB_USER', 'postgres')
         pg_password = os.getenv('PGPASSWORD') or os.getenv('DB_PASSWORD', '')
         
