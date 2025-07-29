@@ -204,8 +204,17 @@ class SyncMarketAnalyzer:
                             data['volume'] = formatted_volume
                             logger.info(f"✅ Извлечен объем: {data['volume']}")
                             break
+                        else:
+                            # Если объем равен 0 или не найден, оставляем "New"
+                            data['volume'] = 'New'
+                            logger.info(f"✅ Объем: New (новый рынок)")
+                            break
                     except ValueError:
                         continue
+            
+            # Если объем не найден ни одним паттерном
+            if data['volume'] == 'New':
+                logger.info(f"✅ Объем: New (новый рынок)")
             
             # Извлекаем адрес контракта через клики
             if page:
