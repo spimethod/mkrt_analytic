@@ -866,4 +866,9 @@ class MarketAnalysisBot:
             bot.stop()
 
 if __name__ == "__main__":
-    main() 
+    bot = MarketAnalysisBot()
+    try:
+        bot.start()
+    except Exception as e:
+        logger.error(f"Fatal error in main: {e}")
+        bot.stop() 
