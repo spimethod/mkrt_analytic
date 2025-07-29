@@ -1,11 +1,12 @@
 import logging
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from database.markets_reader import MarketsReader
 from database.analytic_writer import AnalyticWriter
 from analysis.category_filter import CategoryFilter
 from telegram.new_market_logger import NewMarketLogger
 from active_markets.market_lifecycle_manager import MarketLifecycleManager
+from config.config_loader import ConfigLoader
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ class NewMarketsChecker:
         self.category_filter = CategoryFilter()
         self.new_market_logger = NewMarketLogger()
         self.lifecycle_manager = MarketLifecycleManager(bot_instance)
+        self.config = ConfigLoader()
     
     def check_new_markets(self):
         """Проверка новых рынков каждые 30 секунд"""
@@ -26,6 +28,20 @@ class NewMarketsChecker:
             for market in markets:
                 # Проверяем, не анализируем ли уже этот рынок
                 if market['id'] not in self.bot.active_markets:
+                    # Проверяем время создания рынка
+                    market_created_at = market['created_at']
+                    if market_created_at.tzinfo is None:
+                        market_created_at = market_created_at.replace(tzinfo=timezone.utc)
+                    
+                    current_time = datetime.now(timezone.utc)
+                    time_diff_minutes = (current_time - market_created_at).total_seconds() / 60
+                    
+                    # Проверяем, не слишком ли старый рынок
+                    max_age_minutes = self.config.get_mkrt_analytic_time_min()
+                    if time_diff_minutes > max_age_minutes:
+                        logger.info(f"⚠️ Рынок {market['slug']} слишком старый ({time_diff_minutes:.1f} мин), пропускаем")
+                        continue
+                    
                     # Проверяем категорию рынка
                     category_check = self.category_filter.check_category(market['slug'])
                     if not category_check['is_boolean']:

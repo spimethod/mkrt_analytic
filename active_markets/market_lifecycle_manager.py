@@ -21,6 +21,7 @@ class MarketLifecycleManager:
         self.analysis_time_minutes = self.config.get_analysis_time_minutes()
         self.max_retries = self.config.get_max_retries()
         self.retry_delay_seconds = self.config.get_retry_delay_seconds()
+        self.ping_interval_minutes = self.config.get_mkrt_analytic_ping_min()
     
     def start_market_analysis(self, market_id, market):
         """Начало анализа рынка"""
@@ -63,8 +64,8 @@ class MarketLifecycleManager:
                         time.sleep(self.retry_delay_seconds)
                         continue
                 
-                # Ждем 1 минуту перед следующим анализом
-                time.sleep(60)
+                # Ждем заданный интервал перед следующим анализом
+                time.sleep(self.ping_interval_minutes * 60)
                 
             except Exception as e:
                 retry_count += 1

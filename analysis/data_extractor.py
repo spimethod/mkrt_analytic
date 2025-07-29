@@ -3,6 +3,7 @@ import re
 from analysis.yes_percentage_extractor import YesPercentageExtractor
 from analysis.volume_extractor import VolumeExtractor
 from analysis.contract_extractor import ContractExtractor
+from analysis.market_name_extractor import MarketNameExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +12,7 @@ class DataExtractor:
         self.yes_extractor = YesPercentageExtractor()
         self.volume_extractor = VolumeExtractor()
         self.contract_extractor = ContractExtractor()
+        self.name_extractor = MarketNameExtractor()
     
     async def extract_market_data(self, page):
         """Извлечение данных рынка"""
@@ -21,8 +23,15 @@ class DataExtractor:
                 'yes_percentage': 0,
                 'volume': 'New',
                 'contract_address': '',
-                'status': 'в работе'
+                'status': 'в работе',
+                'market_name': 'Unknown Market'
             }
+            
+            # Извлекаем название рынка
+            market_name = await self.name_extractor.extract_market_name(page)
+            if market_name:
+                data['market_name'] = market_name
+                logger.info(f"✅ Извлечено название рынка: {market_name}")
             
             # Извлекаем процент Yes
             yes_percentage = await self.yes_extractor.extract_yes_percentage(page)

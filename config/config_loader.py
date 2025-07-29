@@ -34,6 +34,10 @@ class ConfigLoader:
         self.max_retries = int(os.getenv('MAX_RETRIES', '3'))
         self.retry_delay_seconds = int(os.getenv('RETRY_DELAY_SECONDS', '30'))
         self.logging_interval_minutes = int(os.getenv('LOGGING_INTERVAL_MINUTES', '10'))
+        
+        # MKRT Analytic config
+        self.mkrt_analytic_time_min = int(os.getenv('MKRT_ANALYTIC_TIME_MIN', '60'))
+        self.mkrt_analytic_ping_min = int(os.getenv('MKRT_ANALYTIC_PING_MIN', '5'))
     
     def get_database_config(self):
         """Получение конфигурации базы данных"""
@@ -61,4 +65,12 @@ class ConfigLoader:
     
     def get_logging_interval_minutes(self):
         """Получение интервала логирования в минутах"""
-        return self.logging_interval_minutes 
+        return self.logging_interval_minutes
+    
+    def get_mkrt_analytic_time_min(self):
+        """Получение минимального времени для анализа рынка в минутах"""
+        return self.mkrt_analytic_time_min
+    
+    def get_mkrt_analytic_ping_min(self):
+        """Получение интервала пинга для анализа рынка в минутах"""
+        return self.mkrt_analytic_ping_min 
