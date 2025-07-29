@@ -23,14 +23,16 @@ class DataExtractor:
             import io
             
             # Делаем скриншот страницы
+            logger.info("📸 Делаем скриншот страницы...")
             screenshot = await page.screenshot(full_page=True)
+            logger.info("✅ Скриншот сделан")
             
             # Конвертируем bytes в PIL Image
             image = Image.open(io.BytesIO(screenshot))
             
             # Извлекаем текст
+            logger.info("🔍 Извлекаем текст через OCR...")
             text = pytesseract.image_to_string(image, lang='eng')
-            
             logger.info(f"📄 Извлеченный текст: {text[:200]}...")
             return text.strip()
             

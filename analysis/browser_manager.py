@@ -65,6 +65,7 @@ class BrowserManager:
         """Переход на страницу"""
         try:
             logger.info(f"🌐 Переходим на страницу: {url}")
+            logger.info(f"⏳ Начинаем загрузку страницы...")
             await self.page.goto(url, wait_until='domcontentloaded', timeout=15000)
             logger.info(f"✅ Страница загружена: {url}")
         except Exception as e:

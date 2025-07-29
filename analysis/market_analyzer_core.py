@@ -23,15 +23,9 @@ class MarketAnalyzerCore:
                     return None
                 logger.info(f"✅ Браузер инициализирован для {slug}")
             
-            # Используем существующий event loop или создаем новый
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_closed():
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+            # Создаем новый event loop для этого анализа
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             
             try:
                 # Добавляем таймаут для анализа
@@ -43,6 +37,12 @@ class MarketAnalyzerCore:
             except Exception as e:
                 logger.error(f"❌ Ошибка анализа рынка {slug}: {e}")
                 return None
+            finally:
+                # Закрываем loop
+                try:
+                    loop.close()
+                except:
+                    pass
         except Exception as e:
             logger.error(f"❌ Ошибка синхронного анализа рынка {slug}: {e}")
             return None
