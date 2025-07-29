@@ -17,13 +17,8 @@ class ConfigLoader:
         pg_user = os.getenv('PGUSER') or os.getenv('DB_USER', 'postgres')
         pg_password = os.getenv('PGPASSWORD') or os.getenv('DB_PASSWORD', '')
         
-        # Логируем конфигурацию только один раз при инициализации
-        if not hasattr(self, '_config_logged'):
-            logger.info(f"Database config: host={pg_host}, port={pg_port}, database={pg_database}, user={pg_user}")
-            self._config_logged = True
-        else:
-            # Убираем логирование для повторных вызовов
-            pass
+        # Убираем логирование конфигурации вообще - оно не нужно
+        pass
         
         # Database config
         self.db_config = {
