@@ -34,6 +34,9 @@ RUN playwright install-deps
 # Копируем код приложения
 COPY . .
 
+# Переименовываем main_modular.py в main.py для Railway
+RUN mv main_modular.py main.py
+
 # Создаем пользователя для безопасности
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
@@ -43,4 +46,4 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV DISPLAY=:99
 
 # Запускаем модульную версию бота
-CMD ["python", "main_modular.py"] 
+CMD ["python", "main.py"] 

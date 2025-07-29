@@ -54,6 +54,5 @@ logs/
 *.temp
 
 # Old files
-main.py
 ocr_screenshot_analyzer.py
 market_analyzer.py 
