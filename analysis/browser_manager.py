@@ -65,7 +65,7 @@ class BrowserManager:
         """Переход на страницу"""
         try:
             logger.info(f"🌐 Переходим на страницу: {url}")
-            await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
+            await self.page.goto(url, wait_until='domcontentloaded', timeout=15000)
             logger.info(f"✅ Страница загружена: {url}")
         except Exception as e:
             logger.error(f"❌ Ошибка перехода на страницу {url}: {e}")
@@ -74,7 +74,9 @@ class BrowserManager:
     async def wait_for_content(self):
         """Ожидание загрузки контента"""
         try:
-            await self.page.wait_for_timeout(5000)
+            logger.info("⏳ Ждем загрузки контента...")
+            await self.page.wait_for_timeout(3000)
+            logger.info("✅ Контент загружен")
         except Exception as e:
             logger.error(f"❌ Ошибка ожидания контента: {e}")
             raise

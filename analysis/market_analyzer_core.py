@@ -57,11 +57,19 @@ class MarketAnalyzerCore:
             # Переходим на страницу рынка
             url = f"https://polymarket.com/event/{slug}"
             logger.info(f"🌐 Переходим на страницу: {url}")
-            await self.browser_manager.goto_page(url)
+            try:
+                await self.browser_manager.goto_page(url)
+            except Exception as e:
+                logger.error(f"❌ Ошибка перехода на страницу {url}: {e}")
+                return None
             
             # Ждем загрузки контента
             logger.info(f"⏳ Ждем загрузки контента...")
-            await self.browser_manager.wait_for_content()
+            try:
+                await self.browser_manager.wait_for_content()
+            except Exception as e:
+                logger.error(f"❌ Ошибка ожидания контента: {e}")
+                return None
             
             # Извлекаем данные
             logger.info(f"🔍 Начинаем извлечение данных...")
