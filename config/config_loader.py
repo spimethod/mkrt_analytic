@@ -9,14 +9,23 @@ class ConfigLoader:
     
     def load_config(self):
         """Загрузка конфигурации из переменных окружения"""
+        # Railway PostgreSQL variables
+        pg_host = os.getenv('PGHOST') or os.getenv('DB_HOST', 'localhost')
+        pg_port = os.getenv('PGPORT') or os.getenv('DB_PORT', '5432')
+        pg_database = os.getenv('PGDATABASE') or os.getenv('DB_NAME', 'polymarket')
+        pg_user = os.getenv('PGUSER') or os.getenv('DB_USER', 'postgres')
+        pg_password = os.getenv('PGPASSWORD') or os.getenv('DB_PASSWORD', '')
+        
         # Database config
         self.db_config = {
-            'host': os.getenv('DB_HOST', 'localhost'),
-            'port': os.getenv('DB_PORT', '5432'),
-            'database': os.getenv('DB_NAME', 'polymarket'),
-            'user': os.getenv('DB_USER', 'postgres'),
-            'password': os.getenv('DB_PASSWORD', '')
+            'host': pg_host,
+            'port': pg_port,
+            'database': pg_database,
+            'user': pg_user,
+            'password': pg_password
         }
+        
+        logger.info(f"Database config: host={pg_host}, port={pg_port}, database={pg_database}, user={pg_user}")
         
         # Telegram config
         self.telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN', '')
