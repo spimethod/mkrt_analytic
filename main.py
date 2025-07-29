@@ -35,6 +35,8 @@ class MarketAnalysisBot:
             self.bot_start_time = datetime.now(timezone.utc)
             logger.info(f"📅 Время запуска бота: {self.bot_start_time}")
             
+
+            
             # Закрываем истекшие рынки при запуске
             self.close_expired_markets()
             
@@ -852,14 +854,16 @@ class MarketAnalysisBot:
             self.telegram_logger.log_error(error_msg)
             return False
 
-def main():
-    """Главная функция"""
-    bot = MarketAnalysisBot()
-    try:
-        bot.start()
-    except Exception as e:
-        logger.error(f"Fatal error in main: {e}")
-        bot.stop()
+
+
+    def run(self):
+        """Главная функция"""
+        bot = MarketAnalysisBot()
+        try:
+            bot.start()
+        except Exception as e:
+            logger.error(f"Fatal error in main: {e}")
+            bot.stop()
 
 if __name__ == "__main__":
     main() 
