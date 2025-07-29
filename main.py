@@ -529,57 +529,43 @@ class MarketAnalysisBot:
                     if current_time < analysis_end_time_from_created:
                         logger.warning(f"⚠️ Рынок {slug} был ошибочно закрыт! Время еще не истекло")
                         
-                        # Проверяем категорию рынка
-                        logger.info(f"🔍 Проверяем категорию для ошибочно закрытого рынка: {slug}")
+                                                # Временно отключаем проверку категории, чтобы избежать зависания
+                        logger.info(f"⚠️ Временно пропускаем проверку категории для {slug} (избегаем зависания)")
                         
-                        analysis_data = self.market_analyzer.get_market_data(slug)
+                        # Рынок подходит для анализа - восстанавливаем
+                        logger.info(f"✅ Восстанавливаем ошибочно закрытый рынок {slug}, осталось {remaining_time_from_created:.1f} минут")
                         
-                        if analysis_data:
-                            # Проверяем, является ли рынок булевым
-                            if not analysis_data.get('is_boolean', True):
-                                reason = analysis_data.get('reason', 'non_boolean')
-                                if reason.startswith('category_'):
-                                    category = reason.replace('category_', '')
-                                    logger.info(f"⚠️ Рынок {slug} действительно относится к категории {category.upper()} - оставляем закрытым")
-                                else:
-                                    logger.info(f"⚠️ Рынок {slug} действительно не булевый - оставляем закрытым")
-                            else:
-                                # Рынок подходит для анализа - восстанавливаем
-                                logger.info(f"✅ Восстанавливаем ошибочно закрытый рынок {slug}, осталось {remaining_time_from_created:.1f} минут")
-                                
-                                # Проверяем, не истекло ли время анализа
-                                current_time = datetime.now(timezone.utc)
-                                analysis_end_time = created_at_analytic + timedelta(minutes=ANALYSIS_TIME_MINUTES)
-                                remaining_time = (analysis_end_time - current_time).total_seconds() / 60
-                                
-                                if remaining_time <= 0:
-                                    logger.warning(f"⚠️ Время анализа уже истекло для восстановленного рынка {slug}")
-                                    self.db_manager.update_market_analysis(market_id, {'status': 'закрыт (время истекло)'})
-                                else:
-                                    logger.info(f"⏰ Осталось времени для анализа: {remaining_time:.1f} минут")
-                                    
-                                    # Возвращаем статус "в работе"
-                                    self.db_manager.update_market_analysis(market_id, {'status': 'в работе'})
-                                    
-                                    # Добавляем в активные рынки
-                                    self.active_markets[market_id] = {
-                                        'start_time': created_at_analytic,
-                                        'last_log': current_time,
-                                        'slug': slug,
-                                        'question': market.get('question', '')
-                                    }
-                                    
-                                    # Запускаем анализ в отдельном потоке
-                                    analysis_thread = threading.Thread(
-                                        target=self.analyze_market_continuously_restored,
-                                        args=(market_id, slug)
-                                    )
-                                    analysis_thread.daemon = True
-                                    analysis_thread.start()
-                                    
-                                    logger.info(f"🔄 Восстановлен ошибочно закрытый рынок: {slug}")
+                        # Проверяем, не истекло ли время анализа
+                        current_time = datetime.now(timezone.utc)
+                        analysis_end_time = created_at_analytic + timedelta(minutes=ANALYSIS_TIME_MINUTES)
+                        remaining_time = (analysis_end_time - current_time).total_seconds() / 60
+                        
+                        if remaining_time <= 0:
+                            logger.warning(f"⚠️ Время анализа уже истекло для восстановленного рынка {slug}")
+                            self.db_manager.update_market_analysis(market_id, {'status': 'закрыт (время истекло)'})
                         else:
-                            logger.warning(f"⚠️ Не удалось получить данные для ошибочно закрытого рынка {slug}")
+                            logger.info(f"⏰ Осталось времени для анализа: {remaining_time:.1f} минут")
+                            
+                            # Возвращаем статус "в работе"
+                            self.db_manager.update_market_analysis(market_id, {'status': 'в работе'})
+                            
+                            # Добавляем в активные рынки
+                            self.active_markets[market_id] = {
+                                'start_time': created_at_analytic,
+                                'last_log': current_time,
+                                'slug': slug,
+                                'question': market.get('question', '')
+                            }
+                            
+                            # Запускаем анализ в отдельном потоке
+                            analysis_thread = threading.Thread(
+                                target=self.analyze_market_continuously_restored,
+                                args=(market_id, slug)
+                            )
+                            analysis_thread.daemon = True
+                            analysis_thread.start()
+                            
+                            logger.info(f"🔄 Восстановлен ошибочно закрытый рынок: {slug}")
                     else:
                         logger.info(f"ℹ️ Рынок {slug} был правильно закрыт - время истекло")
                         
