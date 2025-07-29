@@ -1,42 +1,22 @@
+# Совместимый config.py для обратной совместимости
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+# Database config
+DB_HOST = os.getenv('PGHOST') or os.getenv('DB_HOST', 'localhost')
+DB_PORT = os.getenv('PGPORT') or os.getenv('DB_PORT', '5432')
+DB_NAME = os.getenv('PGDATABASE') or os.getenv('DB_NAME', 'polymarket')
+DB_USER = os.getenv('PGUSER') or os.getenv('DB_USER', 'postgres')
+DB_PASSWORD = os.getenv('PGPASSWORD') or os.getenv('DB_PASSWORD', '')
 
-# Database configurations - using Railway's standard PostgreSQL variables
-# For Polymarket database (markets) - using the same connection for both databases
-POLYMARKET_DB_CONFIG = {
-    'host': os.getenv('PGHOST', 'localhost'),
-    'port': os.getenv('PGPORT', '5432'),
-    'database': os.getenv('PGDATABASE', 'railway'),  # Using 'railway' as default
-    'user': os.getenv('PGUSER', 'postgres'),
-    'password': os.getenv('PGPASSWORD', ''),
-}
-
-ANALYTIC_DB_CONFIG = {
-    'host': os.getenv('PGHOST', 'localhost'),
-    'port': os.getenv('PGPORT', '5432'),
-    'database': os.getenv('PGDATABASE', 'railway'),  # Using 'railway' as default
-    'user': os.getenv('PGUSER', 'postgres'),
-    'password': os.getenv('PGPASSWORD', ''),
-}
-
-# Telegram configuration
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+# Telegram config
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
 
-# Analysis time in minutes
-ANALYSIS_TIME_MINUTES = int(os.getenv('MKRT_ANALYTIC_TIME_MIN', '60'))
-
-# Ping interval in minutes (how often to update market data)
-PING_INTERVAL_MINUTES = int(os.getenv('MKRT_ANALYTIC_PING_MIN', '3'))
+# Analysis config
+ANALYSIS_TIME_MINUTES = int(os.getenv('ANALYSIS_TIME_MINUTES', '60'))
+MAX_RETRIES = int(os.getenv('MAX_RETRIES', '3'))
+RETRY_DELAY_SECONDS = int(os.getenv('RETRY_DELAY_SECONDS', '30'))
+LOGGING_INTERVAL_MINUTES = int(os.getenv('LOGGING_INTERVAL_MINUTES', '10'))
 
 # Polymarket base URL
-POLYMARKET_BASE_URL = 'https://polymarket.com/event/'
-
-# Retry settings
-MAX_RETRIES = 3
-RETRY_DELAY_SECONDS = 60
-
-# Logging interval (every 10 minutes)
-LOGGING_INTERVAL_MINUTES = 10 
+POLYMARKET_BASE_URL = 'https://polymarket.com/event/' 
