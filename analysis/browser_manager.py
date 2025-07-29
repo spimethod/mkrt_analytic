@@ -19,8 +19,25 @@ class BrowserManager:
         try:
             logger.info("🔄 Инициализируем браузер...")
             self.playwright = await async_playwright().start()
-            self.browser = await self.playwright.chromium.launch(headless=True)
+            self.browser = await self.playwright.chromium.launch(
+                headless=True,
+                args=[
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--disable-gpu'
+                ]
+            )
             self.page = await self.browser.new_page()
+            
+            # Устанавливаем user agent
+            await self.page.set_extra_http_headers({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            })
+            
             logger.info("✅ Браузер инициализирован успешно")
             return True
         except Exception as e:
@@ -47,7 +64,9 @@ class BrowserManager:
     async def goto_page(self, url):
         """Переход на страницу"""
         try:
-            await self.page.goto(url, wait_until='networkidle', timeout=60000)
+            logger.info(f"🌐 Переходим на страницу: {url}")
+            await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
+            logger.info(f"✅ Страница загружена: {url}")
         except Exception as e:
             logger.error(f"❌ Ошибка перехода на страницу {url}: {e}")
             raise

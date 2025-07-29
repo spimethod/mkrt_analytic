@@ -17,6 +17,7 @@ class DataExtractor:
     async def extract_market_data(self, page):
         """Извлечение данных рынка"""
         try:
+            logger.info("🔍 Начинаем извлечение данных рынка...")
             data = {
                 'market_exists': True,
                 'is_boolean': True,
@@ -51,6 +52,7 @@ class DataExtractor:
                 data['contract_address'] = contract
                 logger.info(f"✅ Извлечен адрес контракта: {contract}")
             
+            logger.info("✅ Извлечение данных рынка завершено")
             return data
             
         except Exception as e:

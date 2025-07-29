@@ -67,7 +67,12 @@ class MarketAnalyzerCore:
             logger.info(f"🔍 Начинаем извлечение данных...")
             market_data = await self.data_extractor.extract_market_data(self.browser_manager.get_page())
             
-            return market_data
+            if market_data:
+                logger.info(f"✅ Анализ рынка {slug} завершен успешно")
+                return market_data
+            else:
+                logger.warning(f"⚠️ Не удалось извлечь данные для {slug}")
+                return None
             
         except Exception as e:
             logger.error(f"❌ Ошибка анализа рынка {slug}: {e}")
