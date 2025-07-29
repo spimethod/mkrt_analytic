@@ -1,15 +1,17 @@
-venv/
-__pycache__/
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
 *.pyc
 *.pyo
 *.pyd
 .Python
-env/
-.env
-.venv
+env
 pip-log.txt
 pip-delete-this-directory.txt
-.tox/
+.tox
 .coverage
 .coverage.*
 .cache
@@ -17,16 +19,41 @@ nosetests.xml
 coverage.xml
 *.cover
 *.log
-.git/
-.mypy_cache/
-.pytest_cache/
-.hypothesis/
-*.json
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.bmp
-*.tiff
-test_*.py
-*_test.py 
+.git
+.mypy_cache
+.pytest_cache
+.hypothesis
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Old files
+main.py
+ocr_screenshot_analyzer.py
+market_analyzer.py 
