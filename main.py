@@ -177,8 +177,11 @@ class MarketAnalysisBot:
                             }
                             
                             # Логируем новый рынок
-                            self.telegram_logger.log_new_market(market)
-                            logger.info(f"Started analysis for NEW market: {market['slug']} (created: {market['created_at']})")
+                            self.telegram_logger.log_new_market({
+                                'slug': market['slug'],
+                                'question': market['question']
+                            })
+                            logger.info(f"Started analysis for NEW market: {market['slug']} - {market['question']}")
                             
                             # Запускаем анализ в отдельном потоке
                             analysis_thread = threading.Thread(

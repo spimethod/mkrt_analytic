@@ -41,7 +41,7 @@ class DatabaseManager:
             
             cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("""
-                SELECT id, question, created_at, active, enable_order_book, slug
+                SELECT id, question, slug
                 FROM markets
                 ORDER BY created_at DESC
                 LIMIT 10
@@ -63,7 +63,7 @@ class DatabaseManager:
             
             cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("""
-                SELECT id, question, created_at, active, enable_order_book, slug
+                SELECT id, question, slug
                 FROM markets
                 WHERE created_at > %s
                 ORDER BY created_at DESC
@@ -124,9 +124,9 @@ class DatabaseManager:
             insert_data = (
                 market_data['id'],
                 market_data['question'],
-                market_data['created_at'],
-                market_data['active'],
-                market_data['enable_order_book'],
+                current_time,  # Используем текущее время вместо created_at
+                True,  # active по умолчанию True
+                True,  # enable_order_book по умолчанию True
                 market_data['slug'],
                 market_data.get('market_exists', True),  # По умолчанию True
                 market_data.get('is_boolean', True),     # По умолчанию True
