@@ -11,7 +11,6 @@ from config import ANALYSIS_TIME_MINUTES, MAX_RETRIES, RETRY_DELAY_SECONDS, LOGG
 
 # Импортируем настройку логирования
 import logging_config
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -36,19 +35,7 @@ class MarketAnalysisBot:
             self.bot_start_time = datetime.now(timezone.utc)
             logger.info(f"📅 Время запуска бота: {self.bot_start_time}")
             
-            # Обновляем структуру таблицы markets при запуске (только в Railway)
-            if os.getenv('RAILWAY_ENVIRONMENT'):
-                logger.info("🔄 Railway environment detected - updating markets table structure...")
-                try:
-                    import subprocess
-                    result = subprocess.run(['python', 'update_markets_structure.py'], 
-                                         capture_output=True, text=True, timeout=60)
-                    if result.returncode == 0:
-                        logger.info("✅ Структура таблицы markets обновлена")
-                    else:
-                        logger.warning(f"⚠️ Ошибка обновления структуры: {result.stderr}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Не удалось обновить структуру таблицы: {e}")
+
             
             # Закрываем истекшие рынки при запуске
             self.close_expired_markets()
