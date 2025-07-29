@@ -1,8 +1,10 @@
 import logging
 import asyncio
+import threading
 from analysis.browser_manager import BrowserManager
 from analysis.data_extractor import DataExtractor
 from analysis.category_filter import CategoryFilter
+from analysis.sync_market_analyzer import SyncMarketAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -11,38 +13,45 @@ class MarketAnalyzerCore:
         self.browser_manager = BrowserManager()
         self.data_extractor = DataExtractor()
         self.category_filter = CategoryFilter()
+        self.sync_analyzer = SyncMarketAnalyzer()
     
     def analyze_market(self, slug):
         """Синхронная обертка для анализа рынка"""
         try:
-            # Инициализируем браузер, если он не инициализирован
-            if not self.browser_manager.is_initialized():
-                logger.info(f"🔄 Инициализируем браузер для анализа {slug}...")
-                if not self.browser_manager.init_browser_sync():
-                    logger.error(f"❌ Не удалось инициализировать браузер для {slug}")
-                    return None
-                logger.info(f"✅ Браузер инициализирован для {slug}")
+            logger.info(f"🔄 Начинаем синхронный анализ рынка: {slug}")
             
-            # Создаем новый event loop для этого анализа
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            # Используем синхронный анализатор в отдельном потоке
+            # чтобы не блокировать асинхронный код
+            result = None
+            exception = None
             
-            try:
-                # Добавляем таймаут для анализа
-                result = loop.run_until_complete(asyncio.wait_for(self.analyze_market_async(slug), timeout=120))
-                return result
-            except asyncio.TimeoutError:
-                logger.error(f"⏰ Таймаут анализа рынка {slug} (120 секунд)")
-                return None
-            except Exception as e:
-                logger.error(f"❌ Ошибка анализа рынка {slug}: {e}")
-                return None
-            finally:
-                # Закрываем loop
+            def run_sync_analysis():
+                nonlocal result, exception
                 try:
-                    loop.close()
-                except:
-                    pass
+                    result = self.sync_analyzer.analyze_market(slug)
+                except Exception as e:
+                    exception = e
+            
+            # Запускаем синхронный анализ в отдельном потоке
+            thread = threading.Thread(target=run_sync_analysis)
+            thread.start()
+            thread.join(timeout=120)  # Таймаут 120 секунд
+            
+            if thread.is_alive():
+                logger.error(f"⏰ Таймаут синхронного анализа рынка {slug} (120 секунд)")
+                return None
+            
+            if exception:
+                logger.error(f"❌ Ошибка синхронного анализа рынка {slug}: {exception}")
+                return None
+            
+            if result:
+                logger.info(f"✅ Синхронный анализ рынка {slug} завершен успешно")
+                return result
+            else:
+                logger.warning(f"⚠️ Синхронный анализ рынка {slug} не вернул данных")
+                return None
+                
         except Exception as e:
             logger.error(f"❌ Ошибка синхронного анализа рынка {slug}: {e}")
             return None

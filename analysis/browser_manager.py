@@ -66,8 +66,14 @@ class BrowserManager:
         try:
             logger.info(f"🌐 Переходим на страницу: {url}")
             logger.info(f"⏳ Начинаем загрузку страницы...")
-            await self.page.goto(url, wait_until='domcontentloaded', timeout=15000)
+            await self.page.goto(url, wait_until='domcontentloaded', timeout=60000)
             logger.info(f"✅ Страница загружена: {url}")
+            
+            # Ждем дополнительно для загрузки контента
+            logger.info("⏳ Ждем загрузки контента...")
+            await asyncio.sleep(3)
+            logger.info("✅ Контент загружен")
+            
         except Exception as e:
             logger.error(f"❌ Ошибка перехода на страницу {url}: {e}")
             raise
