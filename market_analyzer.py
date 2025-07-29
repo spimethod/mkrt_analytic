@@ -59,6 +59,10 @@ class MarketAnalyzer:
     def get_market_data(self, slug):
         """Синхронная обертка для анализа рынка"""
         try:
+            # Инициализируем браузер, если он не инициализирован
+            if not self.page:
+                self.init_browser_sync()
+            
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
@@ -117,21 +121,33 @@ class MarketAnalyzer:
                 return data
             
             # Извлекаем процент Yes
+            logger.info(f"🔍 Извлекаем процент Yes для рынка...")
             yes_percentage = await self.extract_yes_percentage()
             if yes_percentage:
                 data['yes_percentage'] = yes_percentage
+                logger.info(f"✅ Процент Yes извлечен: {yes_percentage}%")
+            else:
+                logger.warning(f"⚠️ Не удалось извлечь процент Yes")
             
             # Извлекаем Volume
+            logger.info(f"🔍 Извлекаем Volume для рынка...")
             volume = await self.extract_volume()
             if volume:
                 data['volume'] = volume
+                logger.info(f"✅ Volume извлечен: {volume}")
+            else:
+                logger.warning(f"⚠️ Не удалось извлечь Volume")
             
             # Извлекаем контракт
+            logger.info(f"🔍 Извлекаем контракт для рынка...")
             contract = await self.extract_contract()
             if contract:
                 data['contract_address'] = contract
+                logger.info(f"✅ Контракт извлечен: {contract[:20]}...")
+            else:
+                logger.warning(f"⚠️ Не удалось извлечь контракт")
             
-            logger.info(f"Извлеченные данные: {data}")
+            logger.info(f"📊 Итоговые извлеченные данные: {data}")
             return data
             
         except Exception as e:
