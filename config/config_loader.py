@@ -12,12 +12,14 @@ class ConfigLoader:
         # Railway PostgreSQL variables
         pg_host = os.getenv('PGHOST') or os.getenv('DB_HOST', 'localhost')
         pg_port = os.getenv('PGPORT') or os.getenv('DB_PORT', '5432')
-        pg_database = os.getenv('PGDATABASE') or os.getenv('DB_NAME', 'markets')
+        pg_database = os.getenv('PGDATABASE') or os.getenv('DB_NAME', 'railway')
         pg_user = os.getenv('PGUSER') or os.getenv('DB_USER', 'postgres')
         pg_password = os.getenv('PGPASSWORD') or os.getenv('DB_PASSWORD', '')
         
-        # Логируем конфигурацию для отладки
-        logger.info(f"Database config: host={pg_host}, port={pg_port}, database={pg_database}, user={pg_user}")
+        # Логируем конфигурацию только один раз при инициализации
+        if not hasattr(self, '_config_logged'):
+            logger.info(f"Database config: host={pg_host}, port={pg_port}, database={pg_database}, user={pg_user}")
+            self._config_logged = True
         
         # Database config
         self.db_config = {
