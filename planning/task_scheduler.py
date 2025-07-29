@@ -44,6 +44,9 @@ class TaskScheduler:
     
     def _run_market_checker(self):
         """Отдельный поток для проверки новых рынков каждые 30 секунд"""
+        logger.info("🚀 Поток проверки новых рынков начал работу")
+        check_count = 0
+        
         while self.running and self.bot.running:
             try:
                 current_time = datetime.now()
@@ -52,15 +55,29 @@ class TaskScheduler:
                 if (self.last_market_check is None or 
                     (current_time - self.last_market_check).total_seconds() >= 30):
                     
-                    logger.debug("🔍 Проверяем новые рынки...")
-                    self.new_markets_checker.check_new_markets()
+                    check_count += 1
+                    logger.info(f"🔍 Проверка новых рынков #{check_count}...")
+                    
+                    try:
+                        self.new_markets_checker.check_new_markets()
+                        logger.info(f"✅ Проверка новых рынков #{check_count} завершена")
+                    except Exception as e:
+                        logger.error(f"❌ Ошибка в check_new_markets: {e}")
+                    
                     self.last_market_check = current_time
+                else:
+                    # Логируем каждые 10 секунд для отслеживания работы потока
+                    if check_count > 0 and (current_time - self.last_market_check).total_seconds() % 10 < 1:
+                        remaining = 30 - (current_time - self.last_market_check).total_seconds()
+                        logger.debug(f"⏳ До следующей проверки: {remaining:.0f} сек")
                 
                 time.sleep(1)  # Небольшая пауза между проверками
                 
             except Exception as e:
-                logger.error(f"❌ Ошибка в потоке проверки новых рынков: {e}")
+                logger.error(f"❌ Критическая ошибка в потоке проверки новых рынков: {e}")
                 time.sleep(5)  # Пауза при ошибке
+        
+        logger.info("🛑 Поток проверки новых рынков завершил работу")
     
     def stop_market_checker_thread(self):
         """Остановка потока проверки новых рынков"""
