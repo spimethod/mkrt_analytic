@@ -8,11 +8,8 @@ import sys
 import logging
 from main import MarketAnalysisBot
 
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Импортируем настройку логирования
+import logging_config
 
 def main():
     if len(sys.argv) != 2:

@@ -5,15 +5,8 @@ from core.bot_startup import BotStartup
 from core.bot_shutdown import BotShutdown
 from planning.task_scheduler import TaskScheduler
 
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('bot.log'),
-        logging.StreamHandler()
-    ]
-)
+# Импортируем настройку логирования
+import logging_config
 
 logger = logging.getLogger(__name__)
 
