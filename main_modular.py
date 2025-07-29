@@ -31,6 +31,9 @@ class MarketAnalysisBot:
             scheduler_thread.daemon = True
             scheduler_thread.start()
             
+            # Запускаем отдельный поток для проверки новых рынков
+            self.scheduler.start_market_checker_thread()
+            
             # Основной цикл
             try:
                 while self.running:
@@ -45,6 +48,8 @@ class MarketAnalysisBot:
     
     def stop(self):
         """Остановка бота"""
+        # Останавливаем поток проверки новых рынков
+        self.scheduler.stop_market_checker_thread()
         self.shutdown.stop()
     
     def run_scheduler(self):
