@@ -107,6 +107,23 @@ class SyncMarketAnalyzer:
                 'market_name': 'Unknown Market'
             }
             
+            # Извлекаем название рынка
+            title_patterns = [
+                r'Will any presidential candidate[^.!?]*[.!?]',
+                r'Will [^.!?]*[.!?]',
+                r'[A-Z][^.!?]*[.!?]',
+                r'[A-Z][a-z\s]+[?]'
+            ]
+            
+            for pattern in title_patterns:
+                match = re.search(pattern, page_text, re.IGNORECASE)
+                if match:
+                    title = match.group(0).strip()
+                    if len(title) > 10:  # Минимальная длина для названия
+                        data['market_name'] = title
+                        logger.info(f"✅ Извлечено название рынка: {title}")
+                        break
+            
             # Проверяем булевость рынка через RegEx
             boolean_indicators = [
                 r'yes\s*\d+[¢%]',  # Yes 21¢
@@ -162,7 +179,11 @@ class SyncMarketAnalyzer:
                 r'\$(\d+(?:,\d{3})*(?:\.\d+)?)\s*Vol',
                 r'Volume:\s*\$(\d+(?:,\d{3})*(?:\.\d+)?)',
                 r'(\d+(?:,\d{3})*(?:\.\d+)?)\s*USD',
-                r'\$(\d+(?:,\d{3})*(?:\.\d+)?)'
+                r'\$(\d+(?:,\d{3})*(?:\.\d+)?)',
+                r'Total Volume:\s*\$(\d+(?:,\d{3})*(?:\.\d+)?)',
+                r'Volume\s*\$(\d+(?:,\d{3})*(?:\.\d+)?)',
+                r'(\d+(?:,\d{3})*(?:\.\d+)?)\s*volume',
+                r'(\d+(?:,\d{3})*(?:\.\d+)?)\s*total'
             ]
             
             for pattern in volume_patterns:
@@ -182,6 +203,10 @@ class SyncMarketAnalyzer:
             contract_patterns = [
                 r'0x[a-fA-F0-9]{40}',  # Ethereum адрес
                 r'Contract:\s*(0x[a-fA-F0-9]{40})',
+                r'contract\s*(0x[a-fA-F0-9]{40})',
+                r'address\s*(0x[a-fA-F0-9]{40})',
+                r'(0x[a-fA-F0-9]{40})\s*contract',
+                r'(0x[a-fA-F0-9]{40})\s*address'
             ]
             
             for pattern in contract_patterns:
