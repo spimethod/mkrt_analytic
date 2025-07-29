@@ -93,8 +93,8 @@ class SyncMarketAnalyzer:
             logger.error(f"Ошибка извлечения текста: {e}")
             return self.page.text_content()
     
-    def extract_market_data(self, page_text):
-        """Извлечение данных рынка через RegEx"""
+    def extract_market_data(self, page_text, page=None):
+        """Извлечение данных рынка через RegEx + клики для контракта"""
         try:
             logger.info("🔍 Начинаем извлечение данных рынка...")
             data = {
@@ -207,30 +207,207 @@ class SyncMarketAnalyzer:
                     except ValueError:
                         continue
             
-            # Извлекаем адрес контракта через RegEx
-            contract_patterns = [
-                r'0x[a-fA-F0-9]{40}',  # Ethereum адрес
-                r'Contract:\s*(0x[a-fA-F0-9]{40})',
-                r'contract\s*(0x[a-fA-F0-9]{40})',
-                r'address\s*(0x[a-fA-F0-9]{40})',
-                r'(0x[a-fA-F0-9]{40})\s*contract',
-                r'(0x[a-fA-F0-9]{40})\s*address'
-            ]
-            
-            for pattern in contract_patterns:
-                matches = re.findall(pattern, page_text, re.IGNORECASE)
-                if matches:
-                    contract = matches[0]
-                    if len(contract) == 42 and contract.startswith('0x'):
-                        data['contract_address'] = contract
-                        logger.info(f"✅ Извлечен адрес контракта: {contract}")
-                        break
+            # Извлекаем адрес контракта через клики
+            if page:
+                contract_address = self.extract_contract_via_clicks_sync(page)
+                if contract_address:
+                    data['contract_address'] = contract_address
+                    logger.info(f"✅ Извлечен адрес контракта через клики: {contract_address}")
+                else:
+                    # Fallback: извлекаем адрес контракта через RegEx
+                    contract_patterns = [
+                        r'0x[a-fA-F0-9]{40}',  # Ethereum адрес
+                        r'Contract:\s*(0x[a-fA-F0-9]{40})',
+                        r'contract\s*(0x[a-fA-F0-9]{40})',
+                        r'address\s*(0x[a-fA-F0-9]{40})',
+                        r'(0x[a-fA-F0-9]{40})\s*contract',
+                        r'(0x[a-fA-F0-9]{40})\s*address'
+                    ]
+                    
+                    for pattern in contract_patterns:
+                        matches = re.findall(pattern, page_text, re.IGNORECASE)
+                        if matches:
+                            contract = matches[0]
+                            if len(contract) == 42 and contract.startswith('0x'):
+                                data['contract_address'] = contract
+                                logger.info(f"✅ Извлечен адрес контракта через RegEx: {contract}")
+                                break
             
             logger.info("✅ Извлечение данных рынка завершено")
             return data
             
         except Exception as e:
             logger.error(f"❌ Ошибка извлечения данных рынка: {e}")
+            return None
+    
+    def extract_contract_via_clicks_sync(self, page):
+        """Извлечение контракта через клики по Show more"""
+        try:
+            logger.info("🔍 Пытаемся извлечь контракт через клики...")
+            
+            # Ищем кнопку "Show more" или стрелочку
+            show_more_selectors = [
+                '[data-testid="show-more"]',
+                'text=Show more',
+                'text=show more',
+                '[aria-label*="show more"]',
+                '[aria-label*="Show more"]',
+                'button:has-text("Show more")',
+                'button:has-text("show more")',
+                '.show-more',
+                '.expand-button'
+            ]
+            
+            for selector in show_more_selectors:
+                try:
+                    element = page.query_selector(selector)
+                    if element:
+                        logger.info(f"✅ Найдена кнопка Show more: {selector}")
+                        element.click()
+                        page.wait_for_timeout(2000)  # Ждем раскрытия дольше
+                        break
+                except Exception as e:
+                    logger.debug(f"Не удалось найти Show more с селектором {selector}: {e}")
+                    continue
+            
+            # Ищем контракт в раскрытом блоке
+            contract_selectors = [
+                '[data-testid="contract-address"]',
+                'text=0x',
+                '[class*="contract"]',
+                '[class*="Contract"]',
+                'div:has-text("Contract")',
+                'span:has-text("0x")',
+                'div:has-text("0x")',
+                '[class*="address"]',
+                '[class*="Address"]',
+                'code:has-text("0x")',
+                'pre:has-text("0x")',
+                'a:has-text("0x")',
+                'button:has-text("0x")',
+                '[data-testid*="contract"]',
+                '[data-testid*="address"]'
+            ]
+            
+            for selector in contract_selectors:
+                try:
+                    element = page.query_selector(selector)
+                    if element:
+                        contract_text = element.text_content()
+                        # Ищем Ethereum адрес
+                        import re
+                        contract_match = re.search(r'0x[a-fA-F0-9]{40}', contract_text)
+                        if contract_match:
+                            contract_address = contract_match.group(0)
+                            logger.info(f"✅ Найден контракт: {contract_address}")
+                            return contract_address
+                except Exception as e:
+                    logger.debug(f"Не удалось найти контракт с селектором {selector}: {e}")
+                    continue
+            
+            # Fallback: ищем в тексте всей страницы
+            try:
+                page_text_after_click = page.text_content()
+                logger.info(f"📄 Текст страницы после клика (первые 500 символов): {page_text_after_click[:500]}...")
+                import re
+                contract_matches = re.findall(r'0x[a-fA-F0-9]{40}', page_text_after_click)
+                if contract_matches:
+                    contract_address = contract_matches[0]
+                    logger.info(f"✅ Найден контракт в тексте страницы: {contract_address}")
+                    return contract_address
+                else:
+                    logger.debug("🔍 Ethereum адреса не найдены в тексте страницы")
+            except Exception as e:
+                logger.debug(f"Не удалось найти контракт в тексте страницы: {e}")
+            
+            # Пытаемся кликнуть на контракт
+            try:
+                logger.info("🔍 Пытаемся кликнуть на контракт...")
+                
+                # Ищем элементы с контрактом для клика
+                contract_click_selectors = [
+                    'text=0x',
+                    'a:has-text("0x")',
+                    'button:has-text("0x")',
+                    '[class*="contract"]:has-text("0x")',
+                    '[class*="Contract"]:has-text("0x")',
+                    'div:has-text("Contract"):has-text("0x")',
+                    'span:has-text("0x")',
+                    'code:has-text("0x")'
+                ]
+                
+                for selector in contract_click_selectors:
+                    try:
+                        element = page.query_selector(selector)
+                        if element:
+                            logger.info(f"✅ Найден элемент контракта для клика: {selector}")
+                            
+                            # Получаем href атрибут и переходим по нему
+                            try:
+                                href = element.get_attribute('href')
+                                if href:
+                                    logger.info(f"📄 Найден href: {href}")
+                                    
+                                    # Переходим по ссылке
+                                    page.goto(href)
+                                    page.wait_for_load_state('domcontentloaded')
+                                    current_url = page.url
+                                    logger.info(f"📄 Перешли на страницу: {current_url}")
+                                    
+                                    # Извлекаем адрес из URL
+                                    if 'polyscan.com/address/' in current_url:
+                                        contract_address = current_url.split('/address/')[-1]
+                                        if contract_address.startswith('0x') and len(contract_address) == 42:
+                                            logger.info(f"✅ Извлечен контракт из URL: {contract_address}")
+                                            return contract_address
+                                    elif '0x' in current_url:
+                                        import re
+                                        contract_match = re.search(r'0x[a-fA-F0-9]{40}', current_url)
+                                        if contract_match:
+                                            contract_address = contract_match.group(0)
+                                            logger.info(f"✅ Извлечен контракт из URL: {contract_address}")
+                                            return contract_address
+                                else:
+                                    logger.debug("href атрибут не найден, пробуем клик")
+                                    # Fallback: обычный клик
+                                    element.click()
+                                    page.wait_for_timeout(3000)
+                                    current_url = page.url
+                                    logger.info(f"📄 Перешли на страницу: {current_url}")
+                            except Exception as e:
+                                logger.debug(f"Не удалось получить href: {e}")
+                                # Fallback: обычный клик
+                                element.click()
+                                page.wait_for_timeout(3000)
+                                current_url = page.url
+                                logger.info(f"📄 Перешли на страницу: {current_url}")
+                            
+                            # Извлекаем адрес из URL
+                            if 'polyscan.com/address/' in current_url:
+                                contract_address = current_url.split('/address/')[-1]
+                                if contract_address.startswith('0x') and len(contract_address) == 42:
+                                    logger.info(f"✅ Извлечен контракт из URL: {contract_address}")
+                                    return contract_address
+                            elif '0x' in current_url:
+                                import re
+                                contract_match = re.search(r'0x[a-fA-F0-9]{40}', current_url)
+                                if contract_match:
+                                    contract_address = contract_match.group(0)
+                                    logger.info(f"✅ Извлечен контракт из URL: {contract_address}")
+                                    return contract_address
+                            break
+                    except Exception as e:
+                        logger.debug(f"Не удалось кликнуть на контракт с селектором {selector}: {e}")
+                        continue
+                        
+            except Exception as e:
+                logger.error(f"❌ Ошибка клика на контракт: {e}")
+            
+            logger.warning("⚠️ Контракт не найден через клики")
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка извлечения контракта через клики: {e}")
             return None
     
     def analyze_market(self, slug):
@@ -250,7 +427,7 @@ class SyncMarketAnalyzer:
             page_text = self.extract_text_from_screenshot()
             
             # Извлекаем данные
-            market_data = self.extract_market_data(page_text)
+            market_data = self.extract_market_data(page_text, self.page)
             
             if market_data:
                 logger.info(f"✅ Синхронный анализ рынка {slug} завершен успешно")
