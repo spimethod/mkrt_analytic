@@ -21,13 +21,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Параметры подключения к базе данных
+# В продакшене Railway автоматически устанавливает переменные окружения
 DB_CONFIG = {
     'host': os.getenv('PGHOST', 'shinkansen.proxy.rlwy.net'),
-    'port': os.getenv('PGPORT', '13578'),
+    'port': int(os.getenv('PGPORT', '13578')),
     'database': os.getenv('PGDATABASE', 'railway'),
     'user': os.getenv('PGUSER', 'postgres'),
     'password': os.getenv('PGPASSWORD', 'lfNeFtRHaVGdQka0wPXEfJdvxrqX0xzw')
 }
+
+# Выводим параметры подключения для отладки
+logger.info(f"Подключение к БД: {DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}")
+logger.info(f"Пользователь: {DB_CONFIG['user']}")
+logger.info(f"Пароль: {'***' if DB_CONFIG['password'] else 'None'}")
 
 def connect_to_db():
     """Подключение к базе данных"""
