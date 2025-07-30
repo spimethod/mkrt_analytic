@@ -95,4 +95,35 @@ class AnalyticWriter:
             return result is not None
         except Exception as e:
             logger.error(f"Error checking market existence: {e}")
+            return False
+    
+    def update_market_status(self, market_id, status):
+        """Обновление статуса рынка"""
+        try:
+            logger.info(f"🔄 Обновление статуса рынка ID: {market_id} на '{status}'")
+            
+            conn = self.db_connection.get_connection()
+            if not conn:
+                logger.error("❌ Не удалось подключиться к БД")
+                return False
+            
+            cursor = conn.cursor()
+            current_time = datetime.now(timezone.utc)
+            
+            cursor.execute("""
+                UPDATE mkrt_analytic 
+                SET status = %s, last_updated = %s
+                WHERE id = %s
+            """, (status, current_time, market_id))
+            
+            conn.commit()
+            cursor.close()
+            
+            logger.info(f"✅ Статус рынка ID: {market_id} успешно обновлен на '{status}'")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка обновления статуса рынка: {e}")
+            if conn:
+                conn.rollback()
             return False 

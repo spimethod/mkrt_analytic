@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from database.markets_reader import MarketsReader
 from database.analytic_writer import AnalyticWriter
 from analysis.category_filter import CategoryFilter
+from analysis.category_validator import CategoryValidator
 from telegram.new_market_logger import NewMarketLogger
 from active_markets.market_lifecycle_manager import MarketLifecycleManager
 from config.config_loader import ConfigLoader
@@ -16,6 +17,7 @@ class NewMarketsChecker:
         self.markets_reader = MarketsReader()
         self.analytic_writer = AnalyticWriter()
         self.category_filter = CategoryFilter()
+        self.category_validator = CategoryValidator()
         self.new_market_logger = NewMarketLogger()
         self.lifecycle_manager = MarketLifecycleManager(bot_instance)
         self.config = ConfigLoader()
@@ -43,7 +45,20 @@ class NewMarketsChecker:
                         logger.debug(f"ℹ️ Рынок {market['slug']} уже анализировался ранее, пропускаем")
                         continue
                     
-                    # Проверяем категорию рынка
+                    # Проверяем категорию рынка (Крипто/Спорт)
+                    category_validation = self.category_validator.validate_market_category(market['slug'])
+                    if not category_validation['is_valid']:
+                        logger.warning(f"⚠️ Рынок {market['slug']} заблокирован: {category_validation['status']}")
+                        
+                        # Добавляем рынок в аналитическую базу с заблокированным статусом
+                        market_id = self.analytic_writer.insert_market_to_analytic(market)
+                        if market_id:
+                            # Обновляем статус на заблокированный
+                            self.analytic_writer.update_market_status(market_id, category_validation['status'])
+                            logger.info(f"✅ Рынок {market['slug']} добавлен с статусом: {category_validation['status']}")
+                        continue
+                    
+                    # Проверяем булевость рынка
                     category_check = self.category_filter.check_category(market['slug'])
                     if not category_check['is_boolean']:
                         logger.info(f"⚠️ Рынок {market['slug']} не подходит по категории, пропускаем")
