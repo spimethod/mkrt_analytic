@@ -22,6 +22,28 @@ class MarketLifecycleManager:
         self.max_retries = self.config.get_max_retries()
         self.retry_delay_seconds = self.config.get_retry_delay_seconds()
         self.ping_interval_minutes = self.config.get_mkrt_analytic_ping_min()
+        
+        # Ограничение на количество одновременно работающих потоков
+        self.max_concurrent_threads = 3  # Максимум 3 потока одновременно
+        self.active_threads = 0
+        self.thread_lock = threading.Lock()
+    
+    def can_start_new_thread(self):
+        """Проверяет, можно ли запустить новый поток"""
+        with self.thread_lock:
+            return self.active_threads < self.max_concurrent_threads
+    
+    def increment_thread_count(self):
+        """Увеличивает счетчик активных потоков"""
+        with self.thread_lock:
+            self.active_threads += 1
+            logger.debug(f"📊 Активных потоков: {self.active_threads}/{self.max_concurrent_threads}")
+    
+    def decrement_thread_count(self):
+        """Уменьшает счетчик активных потоков"""
+        with self.thread_lock:
+            self.active_threads = max(0, self.active_threads - 1)
+            logger.debug(f"📊 Активных потоков: {self.active_threads}/{self.max_concurrent_threads}")
     
     def start_market_analysis(self, market_id, market):
         """Начало анализа рынка"""
@@ -38,57 +60,78 @@ class MarketLifecycleManager:
     
     def analyze_market_continuously(self, market_id, slug):
         """Непрерывный анализ рынка в течение заданного времени"""
-        start_time = datetime.now()
-        end_time = start_time + timedelta(minutes=self.analysis_time_minutes)
-        retry_count = 0
-        
-        logger.info(f"Starting continuous analysis for market {slug} for {self.analysis_time_minutes} minutes")
-        
-        while datetime.now() < end_time and self.bot.running:
-            try:
-                # Анализируем рынок
-                analysis_data = self.analyzer.analyze_market(slug)
-                
-                if analysis_data:
-                    # Обновляем данные в базе
-                    self.updater.update_market_analysis(market_id, analysis_data)
-                    retry_count = 0  # Сбрасываем счетчик ошибок при успехе
-                else:
+        try:
+            # Проверяем, можно ли запустить новый поток
+            if not self.can_start_new_thread():
+                logger.warning(f"⚠️ Достигнут лимит потоков для рынка {slug}, откладываем анализ")
+                return
+            
+            self.increment_thread_count()
+            
+            start_time = datetime.now()
+            end_time = start_time + timedelta(minutes=self.analysis_time_minutes)
+            retry_count = 0
+            
+            logger.info(f"Starting continuous analysis for market {slug} for {self.analysis_time_minutes} minutes")
+            
+            while datetime.now() < end_time and self.bot.running:
+                try:
+                    # Анализируем рынок
+                    analysis_data = self.analyzer.analyze_market(slug)
+                    
+                    if analysis_data:
+                        # Обновляем данные в базе
+                        self.updater.update_market_analysis(market_id, analysis_data)
+                        retry_count = 0  # Сбрасываем счетчик ошибок при успехе
+                    else:
+                        retry_count += 1
+                        if retry_count >= self.max_retries:
+                            logger.error(f"Max retries reached for market {slug}, stopping analysis")
+                            self.stop_market_analysis(market_id, "закрыт")
+                            break
+                        else:
+                            logger.warning(f"Analysis failed for market {slug}, retry {retry_count}/{self.max_retries}")
+                            time.sleep(self.retry_delay_seconds)
+                            continue
+                    
+                    # Ждем заданный интервал перед следующим анализом
+                    time.sleep(self.ping_interval_minutes * 60)
+                    
+                except Exception as e:
                     retry_count += 1
+                    error_msg = f"Error analyzing market {slug}: {e}"
+                    logger.error(error_msg)
+                    from telegram.error_logger import ErrorLogger
+                    error_logger = ErrorLogger()
+                    error_logger.log_error(error_msg, slug)
+                    
                     if retry_count >= self.max_retries:
                         logger.error(f"Max retries reached for market {slug}, stopping analysis")
                         self.stop_market_analysis(market_id, "закрыт")
                         break
                     else:
-                        logger.warning(f"Analysis failed for market {slug}, retry {retry_count}/{self.max_retries}")
                         time.sleep(self.retry_delay_seconds)
-                        continue
+            
+            # Завершаем анализ рынка
+            if market_id in self.bot.active_markets:
+                self.stop_market_analysis(market_id, "закрыт")
                 
-                # Ждем заданный интервал перед следующим анализом
-                time.sleep(self.ping_interval_minutes * 60)
-                
-            except Exception as e:
-                retry_count += 1
-                error_msg = f"Error analyzing market {slug}: {e}"
-                logger.error(error_msg)
-                from telegram.error_logger import ErrorLogger
-                error_logger = ErrorLogger()
-                error_logger.log_error(error_msg, slug)
-                
-                if retry_count >= self.max_retries:
-                    logger.error(f"Max retries reached for market {slug}, stopping analysis")
-                    self.stop_market_analysis(market_id, "закрыт")
-                    break
-                else:
-                    time.sleep(self.retry_delay_seconds)
-        
-        # Завершаем анализ рынка
-        if market_id in self.bot.active_markets:
-            self.stop_market_analysis(market_id, "закрыт")
+        except Exception as e:
+            logger.error(f"❌ Критическая ошибка в анализе рынка {slug}: {e}")
+        finally:
+            # Всегда уменьшаем счетчик потоков
+            self.decrement_thread_count()
     
     def analyze_market_continuously_restored(self, market_id, slug):
         """Непрерывный анализ восстановленного рынка"""
         try:
+            # Проверяем, можно ли запустить новый поток
+            if not self.can_start_new_thread():
+                logger.warning(f"⚠️ Достигнут лимит потоков для восстановленного рынка {slug}, откладываем анализ")
+                return
+            
+            self.increment_thread_count()
+            
             # Получаем время создания из базы
             from database.active_markets_reader import ActiveMarketsReader
             reader = ActiveMarketsReader()
@@ -160,8 +203,10 @@ class MarketLifecycleManager:
                 self.stop_market_analysis(market_id, "закрыт")
                 
         except Exception as e:
-            logger.error(f"❌ Ошибка анализа восстановленного рынка {slug}: {e}")
-            self.stop_market_analysis(market_id, "закрыт")
+            logger.error(f"❌ Критическая ошибка в анализе восстановленного рынка {slug}: {e}")
+        finally:
+            # Всегда уменьшаем счетчик потоков
+            self.decrement_thread_count()
     
     def stop_market_analysis(self, market_id, status):
         """Остановка анализа рынка"""
