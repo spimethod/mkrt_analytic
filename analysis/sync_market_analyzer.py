@@ -3,20 +3,22 @@
 Синхронный анализатор рынков для использования в асинхронном коде
 """
 
-import asyncio
 import logging
 import re
 import time
+import asyncio
 from datetime import datetime
 from playwright.sync_api import sync_playwright
+from analysis.boolean_market_validator import BooleanMarketValidator
 
 logger = logging.getLogger(__name__)
 
 class SyncMarketAnalyzer:
     def __init__(self):
+        self.playwright = None
         self.browser = None
         self.page = None
-        self.playwright = None
+        self.boolean_validator = BooleanMarketValidator()
     
     def init_browser(self):
         """Синхронная инициализация браузера"""
@@ -124,31 +126,17 @@ class SyncMarketAnalyzer:
                         logger.info(f"✅ Извлечено название рынка: {title}")
                         break
             
-            # Проверяем булевость рынка через RegEx
-            boolean_indicators = [
-                r'yes\s*\d+[¢%]',  # Yes 21¢
-                r'no\s*\d+[¢%]',   # No 81¢
-                r'yes\s*\$\d+',    # Yes $0.21
-                r'no\s*\$\d+',     # No $0.81
-                r'yes\s*\d+%',     # Yes 21%
-                r'no\s*\d+%',      # No 79%
-                r'\d+%',           # 38% (просто процент)
-                r'\d+¢',           # 50¢ (просто центы)
-                r'\$\d+',          # $0.50 (просто доллары)
-            ]
+            # Проверяем булевость рынка через новый валидатор
+            boolean_validation = self.boolean_validator.validate_market_boolean(page_text, data['market_name'])
             
-            is_boolean_market = False
-            for pattern in boolean_indicators:
-                if re.search(pattern, page_text, re.IGNORECASE):
-                    is_boolean_market = True
-                    logger.info(f"✅ Найден булевый индикатор: {pattern}")
-                    break
-            
-            if not is_boolean_market:
-                logger.warning("⚠️ Рынок не является булевым - закрываем анализ")
+            if not boolean_validation['is_boolean']:
+                logger.warning(f"⚠️ Рынок не является булевым: {boolean_validation['reason']}")
                 data['is_boolean'] = False
                 data['status'] = 'closed'
                 return data
+            
+            logger.info(f"✅ Рынок определен как булевый: {boolean_validation['reason']}")
+            data['is_boolean'] = True
             
             # Извлекаем процент Yes через RegEx
             yes_patterns = [
