@@ -150,7 +150,7 @@ class SyncMarketAnalyzer:
                 data['status'] = 'closed'
                 return data
             
-            logger.info(f"✅ Рынок определен как булевый: {boolean_validation['reason']}")
+            logger.info("✅ Рынок определен как булевый")
             data['is_boolean'] = True
             
             # Извлекаем процент Yes через RegEx
