@@ -117,26 +117,13 @@ class DataExtractor:
             
             data['yes_percentage'] = yes_percentage
             
-            # Извлекаем объем через RegEx
-            volume_patterns = [
-                r'\$(\d+(?:,\d{3})*(?:\.\d+)?)\s*Vol',
-                r'Volume:\s*\$(\d+(?:,\d{3})*(?:\.\d+)?)',
-                r'(\d+(?:,\d{3})*(?:\.\d+)?)\s*USD',
-                r'\$(\d+(?:,\d{3})*(?:\.\d+)?)'
-            ]
-            
-            for pattern in volume_patterns:
-                matches = re.findall(pattern, page_text, re.IGNORECASE)
-                if matches:
-                    volume = matches[0].replace(',', '')
-                    try:
-                        volume_float = float(volume)
-                        if volume_float > 0:
-                            data['volume'] = f"${volume}"
-                            logger.info(f"✅ Извлечен объем: {data['volume']}")
-                            break
-                    except ValueError:
-                        continue
+            # Извлекаем объем через улучшенный VolumeExtractor
+            volume = await self.volume_extractor.extract_volume(page)
+            if volume:
+                data['volume'] = volume
+                logger.info(f"✅ Извлечен объем: {volume}")
+            else:
+                logger.warning("⚠️ Объем не найден")
             
             # Извлекаем адрес контракта через RegEx
             contract_patterns = [
