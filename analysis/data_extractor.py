@@ -88,6 +88,32 @@ class DataExtractor:
                 r'\$\d+',          # $0.50 (просто доллары)
             ]
             
+            # Проверяем на не-булевые индикаторы (множественные варианты исхода)
+            non_boolean_indicators = [
+                r'bps\s*(?:decrease|increase)',  # bps decrease/increase
+                r'\d+\s*bps',  # 25 bps, 50 bps
+                r'Buy\s*Yes.*Buy\s*No',  # Buy Yes ... Buy No (множественные кнопки)
+                r'Outcome\s*\d+',  # Outcome 1, Outcome 2
+                r'Option\s*\d+',  # Option 1, Option 2
+                r'Choice\s*\d+',  # Choice 1, Choice 2
+                r'Result\s*\d+',  # Result 1, Result 2
+            ]
+            
+            # Сначала проверяем на не-булевые индикаторы
+            is_non_boolean = False
+            for pattern in non_boolean_indicators:
+                if re.search(pattern, page_text, re.IGNORECASE):
+                    is_non_boolean = True
+                    logger.warning(f"⚠️ Найден не-булевый индикатор: {pattern}")
+                    break
+            
+            if is_non_boolean:
+                logger.warning("⚠️ Рынок не является булевым (множественные варианты исхода) - закрываем анализ")
+                data['is_boolean'] = False
+                data['status'] = 'closed'
+                return data
+            
+            # Затем проверяем на булевые индикаторы
             is_boolean_market = False
             for pattern in boolean_indicators:
                 if re.search(pattern, page_text, re.IGNORECASE):
