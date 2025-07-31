@@ -35,53 +35,71 @@ class NewMarketsChecker:
                 logger.debug("ℹ️ Новых рынков для анализа не найдено")
                 return
             
-            logger.info(f"🔍 Найдено {len(markets)} новых рынков для проверки")
-            
+            # Фильтруем рынки, которые уже были проверены
+            unchecked_markets = []
             for market in markets:
+                # Проверяем, не анализировался ли уже этот рынок в прошлом
+                if self.analytic_writer.market_exists_in_analytic(market['slug']):
+                    logger.debug(f"ℹ️ Рынок {market['slug']} уже анализировался ранее, пропускаем")
+                    continue
+                
                 # Проверяем, не анализируем ли уже этот рынок
-                if market['id'] not in self.bot.active_markets:
-                    # Проверяем, не анализировался ли уже этот рынок в прошлом
-                    if self.analytic_writer.market_exists_in_analytic(market['slug']):
-                        logger.debug(f"ℹ️ Рынок {market['slug']} уже анализировался ранее, пропускаем")
-                        continue
+                if market['id'] in self.bot.active_markets:
+                    logger.debug(f"ℹ️ Рынок {market['slug']} уже в процессе анализа, пропускаем")
+                    continue
+                
+                unchecked_markets.append(market)
+            
+            if not unchecked_markets:
+                logger.debug("ℹ️ Все найденные рынки уже проверены или анализируются")
+                return
+            
+            logger.info(f"🔍 Найдено {len(unchecked_markets)} новых необработанных рынков для проверки")
+            
+            for market in unchecked_markets:
+                # Проверяем категорию рынка (Крипто/Спорт)
+                category_validation = self.category_validator.validate_market_category(market['slug'])
+                if not category_validation['is_valid']:
+                    logger.warning(f"⚠️ Рынок {market['slug']} заблокирован: {category_validation['status']}")
                     
-                    # Проверяем категорию рынка (Крипто/Спорт)
-                    category_validation = self.category_validator.validate_market_category(market['slug'])
-                    if not category_validation['is_valid']:
-                        logger.warning(f"⚠️ Рынок {market['slug']} заблокирован: {category_validation['status']}")
-                        
-                        # Добавляем рынок в аналитическую базу с заблокированным статусом
-                        market_id = self.analytic_writer.insert_market_to_analytic(market)
-                        if market_id:
-                            # Обновляем статус на заблокированный
-                            self.analytic_writer.update_market_status(market_id, category_validation['status'])
-                            logger.info(f"✅ Рынок {market['slug']} добавлен с статусом: {category_validation['status']}")
-                        continue
-                    
-                    # Проверяем булевость рынка
-                    category_check = self.category_filter.check_category(market['slug'])
-                    if not category_check['is_boolean']:
-                        logger.info(f"⚠️ Рынок {market['slug']} не подходит по категории, пропускаем")
-                        continue
-                    
-                    # Добавляем рынок в аналитическую базу
+                    # Добавляем рынок в аналитическую базу с заблокированным статусом
                     market_id = self.analytic_writer.insert_market_to_analytic(market)
-                    
                     if market_id:
-                        # Начинаем анализ рынка
-                        self.lifecycle_manager.start_market_analysis(market_id, market)
-                        
-                        # Логируем новый рынок
-                        self.new_market_logger.log_new_market(market)
-                        logger.info(f"Started analysis for market: {market['slug']}")
-                        
-                        # Запускаем анализ в отдельном потоке
-                        analysis_thread = threading.Thread(
-                            target=self.lifecycle_manager.analyze_market_continuously,
-                            args=(market_id, market['slug'])
-                        )
-                        analysis_thread.daemon = True
-                        analysis_thread.start()
+                        # Обновляем статус на заблокированный
+                        self.analytic_writer.update_market_status(market_id, category_validation['status'])
+                        logger.info(f"✅ Рынок {market['slug']} добавлен с статусом: {category_validation['status']}")
+                    continue
+                
+                # Проверяем булевость рынка
+                category_check = self.category_filter.check_category(market['slug'])
+                if not category_check['is_boolean']:
+                    logger.info(f"⚠️ Рынок {market['slug']} не подходит по категории, пропускаем")
+                    
+                    # Добавляем рынок в аналитическую базу с статусом "не подходит"
+                    market_id = self.analytic_writer.insert_market_to_analytic(market)
+                    if market_id:
+                        self.analytic_writer.update_market_status(market_id, "не подходит по категории")
+                        logger.info(f"✅ Рынок {market['slug']} добавлен с статусом: не подходит по категории")
+                    continue
+                
+                # Добавляем рынок в аналитическую базу
+                market_id = self.analytic_writer.insert_market_to_analytic(market)
+                
+                if market_id:
+                    # Начинаем анализ рынка
+                    self.lifecycle_manager.start_market_analysis(market_id, market)
+                    
+                    # Логируем новый рынок
+                    self.new_market_logger.log_new_market(market)
+                    logger.info(f"Started analysis for market: {market['slug']}")
+                    
+                    # Запускаем анализ в отдельном потоке
+                    analysis_thread = threading.Thread(
+                        target=self.lifecycle_manager.analyze_market_continuously,
+                        args=(market_id, market['slug'])
+                    )
+                    analysis_thread.daemon = True
+                    analysis_thread.start()
         
         except Exception as e:
             error_msg = f"Error checking new markets: {e}"
