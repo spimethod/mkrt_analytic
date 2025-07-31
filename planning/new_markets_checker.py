@@ -5,6 +5,7 @@ from database.markets_reader import MarketsReader
 from database.analytic_writer import AnalyticWriter
 from analysis.category_filter import CategoryFilter
 from analysis.category_validator import CategoryValidator
+from analysis.market_boolean_prechecker import MarketBooleanPrechecker
 from telegram.new_market_logger import NewMarketLogger
 from active_markets.market_lifecycle_manager import MarketLifecycleManager
 from config.config_loader import ConfigLoader
@@ -18,6 +19,7 @@ class NewMarketsChecker:
         self.analytic_writer = AnalyticWriter()
         self.category_filter = CategoryFilter()
         self.category_validator = CategoryValidator()
+        self.boolean_prechecker = MarketBooleanPrechecker()
         self.new_market_logger = NewMarketLogger()
         self.lifecycle_manager = MarketLifecycleManager(bot_instance)
         self.config = ConfigLoader()
@@ -57,6 +59,19 @@ class NewMarketsChecker:
             logger.info(f"🔍 Найдено {len(unchecked_markets)} новых необработанных рынков для проверки")
             
             for market in unchecked_markets:
+                # Предварительная проверка булевости по названию
+                boolean_precheck = self.boolean_prechecker.precheck_market_boolean(market['slug'])
+                
+                if not boolean_precheck['should_analyze']:
+                    logger.warning(f"⚠️ Рынок {market['slug']} отклонен на предварительной проверке: {boolean_precheck['reason']}")
+                    
+                    # Добавляем рынок в аналитическую базу с статусом "не подходит"
+                    market_id = self.analytic_writer.insert_market_to_analytic(market)
+                    if market_id:
+                        self.analytic_writer.update_market_status(market_id, "не подходит по предварительной проверке")
+                        logger.info(f"✅ Рынок {market['slug']} добавлен с статусом: не подходит по предварительной проверке")
+                    continue
+                
                 # Проверяем категорию рынка (Крипто/Спорт)
                 category_validation = self.category_validator.validate_market_category(market['slug'])
                 if not category_validation['is_valid']:
