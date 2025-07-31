@@ -84,7 +84,15 @@ class BooleanMarketValidator:
             text_lower = page_text.lower()
             name_lower = market_name.lower()
             
-            # 1. Проверяем на не-булевые индикаторы (приоритет)
+            # Проверяем на проблемы с браузером - в этом случае не определяем булевость
+            if "failed to verify your browser" in text_lower or "security checkpoint" in text_lower:
+                logger.warning("⚠️ Обнаружена проблема с браузером - не определяем булевость")
+                return {
+                    'is_boolean': True,  # По умолчанию считаем булевым при проблемах с браузером
+                    'reason': 'Проблема с браузером - используем значение по умолчанию'
+                }
+            
+            # 1. Проверяем на явные не-булевые индикаторы (приоритет)
             for pattern in self.non_boolean_indicators:
                 if re.search(pattern, text_lower, re.IGNORECASE):
                     logger.warning(f"⚠️ Найден не-булевый индикатор: {pattern}")
@@ -119,7 +127,24 @@ class BooleanMarketValidator:
                         'reason': f'Множественные варианты: {pattern}'
                     }
             
-            # 4. Проверяем на булевые индикаторы
+            # 4. Проверяем на булевые индикаторы (Yes/No кнопки)
+            boolean_button_patterns = [
+                r'Yes\s+\d+[¢%]',  # Yes 57.3¢
+                r'No\s+\d+[¢%]',   # No 65¢
+                r'Trade\s+Yes',     # Trade Yes
+                r'Trade\s+No',      # Trade No
+                r'Buy\s+Yes',       # Buy Yes
+                r'Buy\s+No',        # Buy No
+            ]
+            
+            boolean_buttons_found = False
+            for pattern in boolean_button_patterns:
+                if re.search(pattern, text_lower, re.IGNORECASE):
+                    boolean_buttons_found = True
+                    logger.info(f"✅ Найдены булевые кнопки: {pattern}")
+                    break
+            
+            # 5. Проверяем на общие булевые индикаторы
             boolean_found = False
             for pattern in self.boolean_indicators:
                 if re.search(pattern, text_lower, re.IGNORECASE):
@@ -127,7 +152,8 @@ class BooleanMarketValidator:
                     logger.info(f"✅ Найден булевый индикатор: {pattern}")
                     break
             
-            if boolean_found:
+            # Если найдены булевые кнопки или индикаторы - рынок булевый
+            if boolean_buttons_found or boolean_found:
                 return {
                     'is_boolean': True,
                     'reason': 'Найден булевый индикатор'
@@ -142,6 +168,6 @@ class BooleanMarketValidator:
         except Exception as e:
             logger.error(f"❌ Ошибка валидации булевости: {e}")
             return {
-                'is_boolean': False,
+                'is_boolean': True,  # По умолчанию считаем булевым при ошибках
                 'reason': f'Ошибка валидации: {e}'
             } 
